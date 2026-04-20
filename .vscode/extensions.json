@@ -1,0 +1,42 @@
+{
+  "recommendations": [
+    // A Vite-native testing framework. It's fast!
+    "vitest.explorer",
+    // Icons for Visual Studio Code
+    "vscode-icons-team.vscode-icons",
+    // Integrates ESLint JavaScript into VS Code.
+    "dbaeumer.vscode-eslint",
+    // Supercharge Git within VS Code — Visualize code authorship at a glance via Git blame annotations and CodeLens,
+    // seamlessly navigate and explore Git repositories, gain valuable insights via rich visualizations and powerful
+    // comparison commands, and so much more
+    "eamodio.gitlens",
+    // Intelligent Tailwind CSS tooling for VS Code
+    "bradlc.vscode-tailwindcss",
+    // Adds Mermaid diagram and flowchart support to VS Code's builtin markdown preview
+    "bierner.markdown-mermaid",
+    // All you need to write Markdown (keyboard shortcuts, table of contents, auto preview and more)
+    "yzhang.markdown-all-in-one",
+    // Improve your code commenting by annotating with alert, informational, TODOs, and more!
+    "aaron-bond.better-comments",
+    // Language support for MDX
+    "unifiedjs.vscode-mdx",
+    // Barreler for typescript apps
+    "mikerhyssmith.ts-barrelr",
+    // Markdown syntax support for the Mermaid charting language
+    "bpruitt-goddard.mermaid-markdown-syntax-highlighting",
+    // Robot Framework Language Server
+    "robotcode.robotcode",
+    // Ruff - The fastest Python linter
+    "charliermarsh.ruff",
+    // Python extension
+    "ms-python.python",
+    // Pyright extension
+    "ms-python.pyright",
+  ],
+  "unwantedRecommendations": [
+    // Code formatter using prettier
+    "esbenp.prettier-vscode", // ! use "dbaeumer.vscode-eslint"
+    // tests runner
+    "firsttris.vscode-jest-runner" // ! use "vitest.explorer"
+  ]
+}

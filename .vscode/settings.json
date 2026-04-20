@@ -1,0 +1,96 @@
+{
+  // #region editor
+  "editor.formatOnPaste": true,
+  "editor.formatOnSave": true,
+  "editor.formatOnType": true,
+  "editor.detectIndentation": false,
+  "editor.formatOnSaveMode": "file",
+  "editor.tabSize": 2,
+  "editor.insertSpaces": true,
+  "editor.codeActionsOnSave": {
+    "source.organizeImports": "always",
+    "source.removeUnusedImports": "always",
+    "source.fixAll.eslint": "always",
+    "source.sortImports": "always",
+    "source.organizeLinkDefinitions": "always",
+  },
+  "editor.rulers": [
+    80,
+    100,
+    120
+  ],
+  // #endregion
+  // #region files
+  "files.encoding": "utf8",
+  "files.eol": "\n",
+  "files.insertFinalNewline": false,
+  "files.trimFinalNewlines": true,
+  "files.associations": {
+    ".env*": "shellscript",
+    "*.tmpl": "markdown"
+  },
+  "files.exclude": {
+    "**/.git": true,
+    "**/.svn": true,
+    "**/.hg": true,
+    "**/.DS_Store": true,
+    "**/Thumbs.db": true,
+  },
+  // #endregion
+  // #region eslint
+  "eslint.enable": true,
+  "eslint.format.enable": true,
+  "eslint.useFlatConfig": true,
+  "eslint.workingDirectories": [
+    {
+      "mode": "auto"
+    }
+  ],
+  "[typescript]": {
+    "editor.defaultFormatter": "vscode.typescript-language-features"
+  },
+  "[typescriptreact]": {
+    "editor.defaultFormatter": "dbaeumer.vscode-eslint"
+  },
+  // #endregion
+  // #region git
+  "git.inputValidation": false,
+  // #endregion
+  // #region javascript
+  "javascript.format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces": false,
+  "javascript.format.insertSpaceAfterFunctionKeywordForAnonymousFunctions": true,
+  "javascript.format.insertSpaceAfterOpeningAndBeforeClosingEmptyBraces": false,
+  "javascript.format.insertSpaceBeforeFunctionParenthesis": false,
+  "javascript.format.insertSpaceAfterConstructor": false,
+  "javascript.preferences.importModuleSpecifier": "shortest",
+  "javascript.suggestionActions.enabled": false,
+  "javascript.preferences.quoteStyle": "single",
+  // #endregion
+  // #region typescript
+  "typescript.format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces": false,
+  "typescript.format.insertSpaceAfterFunctionKeywordForAnonymousFunctions": true,
+  "typescript.format.insertSpaceAfterOpeningAndBeforeClosingEmptyBraces": false,
+  "typescript.format.insertSpaceBeforeFunctionParenthesis": false,
+  "typescript.format.insertSpaceAfterConstructor": false,
+  "typescript.preferences.importModuleSpecifier": "shortest",
+  "typescript.suggestionActions.enabled": false,
+  "typescript.preferences.quoteStyle": "single",
+  "typescript.tsdk": "node_modules/typescript/lib",
+  "typescript.enablePromptUseWorkspaceTsdk": true,
+  // #endregion
+  // #region js/ts
+  "js/ts.format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces": false,
+  "js/ts.format.insertSpaceAfterFunctionKeywordForAnonymousFunctions": true,
+  "js/ts.format.insertSpaceAfterOpeningAndBeforeClosingEmptyBraces": false,
+  "js/ts.format.insertSpaceBeforeFunctionParenthesis": false,
+  "js/ts.format.insertSpaceAfterConstructor": false,
+  "js/ts.preferences.importModuleSpecifier": "shortest",
+  "js/ts.suggestionActions.enabled": false,
+  "js/ts.preferences.quoteStyle": "single",
+  // #endregion
+  // #region barrelr
+  "barrelr.lineEnding": "LF",
+  "barrelr.useSemiColons": true,
+  "barrelr.useDoubleQuotes": false,
+  // #endregion
+}

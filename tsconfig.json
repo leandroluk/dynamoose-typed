@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "compilerOptions": {
+    "target": "ES2023",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": false,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "strict": true,
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "skipLibCheck": true,
+    "noUncheckedIndexedAccess": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "allowJs": true,
+    "allowSyntheticDefaultImports": true,
+    "removeComments": true,
+    "outDir": "dist",
+    "paths": {
+      "#/*": [
+        "./src/*"
+      ]
+    }
+  },
+  "include": [
+    "src",
+    "test",
+    "*.config.*"
+  ],
+  "exclude": [
+    "node_modules",
+    ".coverage",
+    "dist"
+  ]
+}
