@@ -4,14 +4,14 @@
 <br>
 
 <div align="center">
-  <a href="https://www.npmjs.com/package/dynamoose-typed">
-    <img src="https://img.shields.io/npm/v/dynamoose-typed.svg" alt="NPM Version" />
+  <a href="https://www.npmjs.com/package/@leandroluk/dynamoose-typed">
+    <img src="https://img.shields.io/npm/v/@leandroluk/dynamoose-typed.svg" alt="NPM Version" />
   </a>
   <a href="https://github.com/leandroluk/dynamoose-typed/blob/master/LICENSE">
-    <img src="https://img.shields.io/npm/l/dynamoose-typed.svg" alt="License" />
+    <img src="https://img.shields.io/npm/l/@leandroluk/dynamoose-typed.svg" alt="License" />
   </a>
-  <a href="https://www.npmjs.com/package/dynamoose-typed">
-    <img src="https://img.shields.io/npm/dw/dynamoose-typed.svg" alt="Downloads" />
+  <a href="https://www.npmjs.com/package/@leandroluk/dynamoose-typed">
+    <img src="https://img.shields.io/npm/dw/@leandroluk/dynamoose-typed.svg" alt="Downloads" />
   </a>
   <a href="https://github.com/leandroluk/dynamoose-typed/actions/workflows/ci.yml">
     <img src="https://img.shields.io/github/actions/workflow/status/leandroluk/dynamoose-typed/ci.yml?branch=master" alt="CI Status" />
