@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="assets/banner.png" alt="Dynamoose Typed" height="100" />
+  <img src="assets/banner.png" alt="Dynamoose Typed" height="100" width="250" />
 </div>
 <br>
 
@@ -229,21 +229,21 @@ await dataSource.transaction(async (tx) => {
 
 ## Attribute decorators reference
 
-| Decorator | DynamoDB type | Notes |
-|---|---|---|
-| `@StringAttribute` | S | Supports `hashKey`, `rangeKey`, `minLength`, `maxLength`, `trim`, `lowercase`, `uppercase` |
-| `@NumberAttribute` | N | Supports `min`, `max` |
-| `@BooleanAttribute` | BOOL | |
-| `@DateAttribute` | S / N / B | Storage type controlled by `type` option |
-| `@CreateDateAttribute` | S / N / B | Set once on insert, never updated |
-| `@UpdateDateAttribute` | S / N / B | Updated on every save/update |
-| `@DeleteDateAttribute` | S / N / B | Set by `delete()`, cleared by `restore()` |
-| `@NestedAttribute(() => Doc)` | M | Doc must be decorated with `@DynamoDocument` |
-| `@ArrayAttribute(() => Type)` | L | Primitives or `@DynamoDocument` instances |
-| `@SetAttribute(() => Type)` | SS / NS | Must be a `Set<string>` or `Set<number>` |
-| `@HashKey()` | S | Shorthand for `@StringAttribute({ hashKey: true })` |
-| `@RangeKey()` | S | Shorthand for `@StringAttribute({ rangeKey: true })` |
-| `@Attribute(options)` | any | Raw Dynamoose attribute passthrough |
+| Decorator                     | DynamoDB type | Notes                                                                                      |
+| ----------------------------- | ------------- | ------------------------------------------------------------------------------------------ |
+| `@StringAttribute`            | S             | Supports `hashKey`, `rangeKey`, `minLength`, `maxLength`, `trim`, `lowercase`, `uppercase` |
+| `@NumberAttribute`            | N             | Supports `min`, `max`                                                                      |
+| `@BooleanAttribute`           | BOOL          |                                                                                            |
+| `@DateAttribute`              | S / N / B     | Storage type controlled by `type` option                                                   |
+| `@CreateDateAttribute`        | S / N / B     | Set once on insert, never updated                                                          |
+| `@UpdateDateAttribute`        | S / N / B     | Updated on every save/update                                                               |
+| `@DeleteDateAttribute`        | S / N / B     | Set by `delete()`, cleared by `restore()`                                                  |
+| `@NestedAttribute(() => Doc)` | M             | Doc must be decorated with `@DynamoDocument`                                               |
+| `@ArrayAttribute(() => Type)` | L             | Primitives or `@DynamoDocument` instances                                                  |
+| `@SetAttribute(() => Type)`   | SS / NS       | Must be a `Set<string>` or `Set<number>`                                                   |
+| `@HashKey()`                  | S             | Shorthand for `@StringAttribute({ hashKey: true })`                                        |
+| `@RangeKey()`                 | S             | Shorthand for `@StringAttribute({ rangeKey: true })`                                       |
+| `@Attribute(options)`         | any           | Raw Dynamoose attribute passthrough                                                        |
 
 All decorators accept an optional first argument `alias` (string) to map a TypeScript property name to a different DynamoDB attribute name:
 
