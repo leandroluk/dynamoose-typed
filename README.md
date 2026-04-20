@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="assets/banner.png" alt="Dynamoose Typed" height="100" width="250" />
+  <img src="assets/banner.png" alt="Dynamoose Typed" />
 </div>
 <br>
 
