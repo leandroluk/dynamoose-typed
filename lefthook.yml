@@ -1,5 +1,5 @@
 pre-commit:
-  parallel: true
+  parallel: false
   commands:
     typecheck:
       run: pnpm tsc
@@ -7,7 +7,7 @@ pre-commit:
       run: pnpm lint
 
 pre-push:
-  parallel: true
+  parallel: false
   commands:
     typecheck:
       run: pnpm tsc
