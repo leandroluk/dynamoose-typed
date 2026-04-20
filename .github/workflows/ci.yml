@@ -51,28 +51,59 @@ jobs:
   publish:
     name: Publish to NPM
     needs: build
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       id-token: write 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check version changes
+        id: check
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          if git show-ref --tags "refs/tags/v$VERSION" --quiet; then
+            echo "Version v$VERSION already exists. Skipping publish."
+            echo "publish=false" >> $GITHUB_OUTPUT
+          else
+            echo "New version v$VERSION detected. Will publish."
+            echo "publish=true" >> $GITHUB_OUTPUT
+            echo "version=v$VERSION" >> $GITHUB_OUTPUT
+          fi
 
       - name: Install pnpm
+        if: steps.check.outputs.publish == 'true'
         uses: pnpm/action-setup@v4
 
       - name: Setup Node.js
+        if: steps.check.outputs.publish == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: 22.x
+          registry-url: 'https://registry.npmjs.org'
 
       - name: Install dependencies
+        if: steps.check.outputs.publish == 'true'
         run: pnpm install --frozen-lockfile
 
       - name: Build
+        if: steps.check.outputs.publish == 'true'
         run: pnpm build
 
+      - name: Create and push tag
+        if: steps.check.outputs.publish == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag ${{ steps.check.outputs.version }}
+          git push origin ${{ steps.check.outputs.version }}
+
       - name: Publish package
+        if: steps.check.outputs.publish == 'true'
         run: npm publish --access public --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
