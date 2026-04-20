@@ -3,8 +3,7 @@ import {
   DynamoTable,
   getDocumentMeta,
   getTableMeta,
-  HashKey,
-  RangeKey,
+  NumberAttribute,
   SetAttribute,
   StringAttribute,
 } from '#/index';
@@ -13,10 +12,10 @@ import {AddressDoc, OrderTable, UserTable} from './fixtures';
 
 @DynamoTable('extra_decorators_table')
 class ExtraDecoratorsTable {
-  @HashKey()
+  @StringAttribute({hashKey: true})
   id!: string;
 
-  @RangeKey()
+  @NumberAttribute({rangeKey: true})
   sort!: number;
 
   @SetAttribute(() => String)
@@ -95,7 +94,7 @@ describe('decorator metadata', () => {
       expect(kinds['deletedAt']).toBe('deleteDate');
     });
 
-    it('supports @HashKey and @RangeKey standalone decorators', () => {
+    it('supports hashKey and rangeKey passed via options', () => {
       const meta = getTableMeta(ExtraDecoratorsTable)!;
       expect(meta.hashKey).toBe('id');
       expect(meta.rangeKey).toBe('sort');

@@ -241,8 +241,6 @@ await dataSource.transaction(async (tx) => {
 | `@NestedAttribute(() => Doc)` | M             | Doc must be decorated with `@DynamoDocument`                                               |
 | `@ArrayAttribute(() => Type)` | L             | Primitives or `@DynamoDocument` instances                                                  |
 | `@SetAttribute(() => Type)`   | SS / NS       | Must be a `Set<string>` or `Set<number>`                                                   |
-| `@HashKey()`                  | S             | Shorthand for `@StringAttribute({ hashKey: true })`                                        |
-| `@RangeKey()`                 | S             | Shorthand for `@StringAttribute({ rangeKey: true })`                                       |
 | `@Attribute(options)`         | any           | Raw Dynamoose attribute passthrough                                                        |
 
 All decorators accept an optional first argument `alias` (string) to map a TypeScript property name to a different DynamoDB attribute name:

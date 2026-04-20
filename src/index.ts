@@ -15,8 +15,6 @@ export {
   SetAttribute,
 } from './decorators/attribute.decorators';
 
-export {HashKey, RangeKey} from './decorators/key.decorators';
-
 export {DataSource} from './data-source/data-source';
 export type {DataSourceOptions} from './data-source/data-source';
 
