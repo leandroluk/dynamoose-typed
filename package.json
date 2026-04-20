@@ -78,6 +78,9 @@
     "vitest": "4.1.4"
   },
   "dependencies": {
+    "@commitlint/cli": "20.5.0",
+    "@commitlint/config-conventional": "20.5.0",
+    "@commitlint/types": "20.5.0",
     "dynamoose": "4.1.5",
     "uuid": "13.0.0"
   },
