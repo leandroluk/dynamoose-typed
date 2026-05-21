@@ -255,6 +255,11 @@ function buildDefinition(attributes: StoredAttributeMeta[]): Record<string, unkn
         def[key] = entry;
         break;
       }
+
+      case 'version': {
+        def[key] = {type: Number, default: 0};
+        break;
+      }
     }
 
     // clean up undefined values
@@ -297,6 +302,10 @@ export interface ResolvedSchema {
   deleteDateIndexName?: string;
   /** Property name of the @DateAttribute({ ttl: true }) field, if any. */
   ttlKey?: string;
+  /** Property name of the @VersionAttribute field, if any. */
+  versionKey?: string;
+  /** Attribute name (after alias resolution) of the @VersionAttribute field, if any. */
+  versionAttrName?: string;
   /** Property → attribute name mapping for alias resolution. */
   aliasMap: Record<string, string>;
   /** Attribute name → property key (reverse). */
@@ -342,6 +351,10 @@ export function resolveTableSchema(entityClass: new () => unknown): ResolvedSche
     tableOptions['expires'] = {attribute: ttlAttr.attributeName};
   }
 
+  const versionAttr = meta.attributes.find(a => a.kind === 'version');
+  const versionKey = versionAttr?.propertyKey;
+  const versionAttrName = versionAttr?.attributeName;
+
   return {
     tableName: meta.tableName,
     definition,
@@ -354,6 +367,8 @@ export function resolveTableSchema(entityClass: new () => unknown): ResolvedSche
     deleteDateKey: meta.deleteDateKey,
     deleteDateIndexName,
     ttlKey,
+    versionKey,
+    versionAttrName,
     aliasMap,
     reverseAliasMap,
   };

@@ -1,6 +1,16 @@
+import {OptimisticLockError} from '#/errors';
 import type {InternalModel} from '#/model/internal-model';
 import type {AnyRecord, CountOptions, FilterCondition, FindOptions, ItemKey, PaginatedResult} from '#/types';
+import type * as DynamoDB from '@aws-sdk/client-dynamodb';
+import {Condition} from 'dynamoose/dist/Condition';
 import {type InputKey} from 'dynamoose/dist/General';
+import {type ItemSaveSettings} from 'dynamoose/dist/Item';
+
+interface ModelUpdateSettings {
+  return?: 'item' | 'request';
+  condition?: Condition;
+  returnValues?: DynamoDB.ReturnValue;
+}
 
 function applyFilters<Q>(q: Q, filter: Record<string, FilterCondition>, aliasMap: Record<string, string>): Q {
   for (const [propKey, cond] of Object.entries(filter)) {
@@ -58,28 +68,54 @@ export class Repository<T extends object> {
 
   /**
    * Persists a new item. Runs beforeInsert/afterInsert hooks and injects timestamps.
+   * For versioned entities, enforces insert-only semantics (throws if item already exists).
    */
   async save(item: T): Promise<T> {
     const raw = this.#model.toAttributeKey(item);
     this.#model.injectCreateTimestamps(raw);
     await this.#model.runHook('beforeInsert', raw);
-    await this.#model.raw.create(raw);
+    const settings = this.#model.schema.versionKey ? {overwrite: false} : undefined;
+    await this.#model.raw.create(raw, settings as ItemSaveSettings);
     await this.#model.runHook('afterInsert', raw);
     return this.#model.normalize(raw);
   }
 
   /**
    * Updates an existing item partially.
+   * For versioned entities: if `changes` includes the version field, applies an optimistic-lock
+   * condition (`version = expected`) and auto-increments the version. Throws `OptimisticLockError`
+   * on conflict.
    */
   async update(key: ItemKey<T>, changes: Partial<T>): Promise<T> {
     const attrKey = this.#model.toAttributeKey(key);
     const attrChanges = this.#model.toAttributeKey(changes);
     this.#model.injectUpdateTimestamp(attrChanges);
+
+    const {versionKey, versionAttrName} = this.#model.schema;
+    let updateSettings: {condition?: Condition} | undefined;
+
+    if (versionKey && versionAttrName) {
+      const expectedVersion = attrChanges[versionAttrName];
+      if (expectedVersion !== undefined && expectedVersion !== null) {
+        updateSettings = {
+          condition: new Condition().where(versionAttrName).eq(expectedVersion),
+        };
+        attrChanges[versionAttrName] = (expectedVersion as number) + 1;
+      }
+    }
+
     await this.#model.runHook('beforeUpdate', {...attrKey, ...attrChanges});
-    const result = await this.#model.raw.update(attrKey, attrChanges);
-    const normalized = this.#model.normalize(result);
-    await this.#model.runHook('afterUpdate', normalized as AnyRecord);
-    return normalized;
+    try {
+      const result = await this.#model.raw.update(attrKey, attrChanges, updateSettings as ModelUpdateSettings);
+      const normalized = this.#model.normalize(result);
+      await this.#model.runHook('afterUpdate', normalized as AnyRecord);
+      return normalized;
+    } catch (err) {
+      if ((err as {name?: string}).name === 'ConditionalCheckFailedException') {
+        throw new OptimisticLockError(key);
+      }
+      throw err;
+    }
   }
 
   /**

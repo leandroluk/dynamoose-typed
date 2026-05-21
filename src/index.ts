@@ -13,7 +13,10 @@ export {
   NestedAttribute,
   ArrayAttribute,
   SetAttribute,
+  VersionAttribute,
 } from './decorators/attribute.decorators';
+
+export {OptimisticLockError} from './errors';
 
 export {DataSource} from './data-source/data-source';
 export type {DataSourceOptions} from './data-source/data-source';
@@ -43,4 +46,5 @@ export type {
   NestedAttributeOptions,
   ArrayAttributeOptions,
   SetAttributeOptions,
+  VersionAttributeOptions,
 } from './types/attribute.types';

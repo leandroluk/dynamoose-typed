@@ -9,6 +9,7 @@ import {
   NumberAttribute,
   StringAttribute,
   UpdateDateAttribute,
+  VersionAttribute,
 } from '#';
 
 @DynamoDocument()
@@ -63,6 +64,18 @@ export class OrderTable {
 
   @NumberAttribute({default: 1})
   quantity!: number;
+}
+
+@DynamoTable('versioned_items')
+export class VersionedTable {
+  @StringAttribute({hashKey: true, required: true})
+  id!: string;
+
+  @StringAttribute()
+  name!: string;
+
+  @VersionAttribute()
+  version!: number;
 }
 
 // ─── Fixtures for nested timestamp tests ──────────────────────────────────────

@@ -17,9 +17,11 @@ import {
   DeleteDateAttribute,
   NestedAttribute,
   NumberAttribute,
+  OptimisticLockError,
   SetAttribute,
   StringAttribute,
   UpdateDateAttribute,
+  VersionAttribute,
 } from '#';
 import {DataSource} from '#/data-source/data-source';
 import {Attribute} from '#/decorators/attribute.decorators';
@@ -29,8 +31,8 @@ import {InternalModel} from '#/model/internal-model';
 import {resolveTableSchema} from '#/schema';
 import type {AnyRecord} from '#/types';
 import dynamoose from 'dynamoose';
-import {type Mock, beforeEach, describe, expect, it, vi} from 'vitest';
-import {AuditedOrderTable, OrderTable, UserTable} from './fixtures';
+import {type Mock, afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
+import {AuditedOrderTable, OrderTable, UserTable, VersionedTable} from './fixtures';
 
 // ── Mock model interface + factory ───────────────────────────────────────────
 
@@ -1146,5 +1148,110 @@ describe('Branch coverage — final gaps', () => {
     const tableSchema = resolveTableSchema(NoHooksTable);
     expect(tableSchema.tableOptions).not.toHaveProperty('_hooks');
     expect(tableSchema.tableOptions).not.toHaveProperty('hooks');
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// @VersionAttribute + OptimisticLockError
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('@VersionAttribute and optimistic locking', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it('OptimisticLockError has correct name and message', () => {
+    const err = new OptimisticLockError({id: '1'});
+    expect(err.name).toBe('OptimisticLockError');
+    expect(err.message).toContain('Optimistic lock conflict');
+    expect(err.message).toContain('"id"');
+  });
+
+  it('OptimisticLockError without key omits key from message', () => {
+    const err = new OptimisticLockError();
+    expect(err.message).not.toContain('Key:');
+  });
+
+  it('resolveTableSchema detects versionKey and versionAttrName', () => {
+    const schema = resolveTableSchema(VersionedTable);
+    expect(schema.versionKey).toBe('version');
+    expect(schema.versionAttrName).toBe('version');
+    expect((schema.definition['version'] as Record<string, unknown>)['type']).toBe(Number);
+    expect((schema.definition['version'] as Record<string, unknown>)['default']).toBe(0);
+  });
+
+  it('resolveTableSchema with aliased @VersionAttribute sets versionAttrName correctly', () => {
+    @DynamoTable('v-alias-table')
+    class VAliasTable {
+      @StringAttribute({hashKey: true}) id!: string;
+      @VersionAttribute('v')
+      version!: number;
+    }
+    const schema = resolveTableSchema(VAliasTable);
+    expect(schema.versionKey).toBe('version');
+    expect(schema.versionAttrName).toBe('v');
+  });
+
+  it('save() on versioned entity calls create with overwrite:false', async () => {
+    const mockModel = makeMockDynamooseModel();
+    vi.spyOn(dynamoose, 'model').mockReturnValue(mockModel as any);
+    const ds = new DataSource({entities: [VersionedTable]});
+    await ds.initialize();
+    const repo = ds.getRepository(VersionedTable);
+    await repo.save({id: '1', name: 'Alice', version: 0});
+    expect(mockModel.create).toHaveBeenCalledWith(
+      expect.objectContaining({id: '1'}),
+      expect.objectContaining({overwrite: false})
+    );
+  });
+
+  it('update() with version in changes builds condition and increments version', async () => {
+    const mockModel = makeMockDynamooseModel();
+    mockModel.update.mockResolvedValue({id: '1', name: 'Bob', version: 1});
+    vi.spyOn(dynamoose, 'model').mockReturnValue(mockModel as any);
+    const ds = new DataSource({entities: [VersionedTable]});
+    await ds.initialize();
+    const repo = ds.getRepository(VersionedTable);
+    const result = await repo.update({id: '1'}, {name: 'Bob', version: 0} as Partial<VersionedTable>);
+    expect(mockModel.update).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({version: 1}),
+      expect.objectContaining({condition: expect.anything()})
+    );
+    expect(result).toBeDefined();
+  });
+
+  it('update() with version in changes throws OptimisticLockError on ConditionalCheckFailedException', async () => {
+    const mockModel = makeMockDynamooseModel();
+    const condError = Object.assign(new Error('condition failed'), {name: 'ConditionalCheckFailedException'});
+    mockModel.update.mockRejectedValue(condError);
+    vi.spyOn(dynamoose, 'model').mockReturnValue(mockModel as any);
+    const ds = new DataSource({entities: [VersionedTable]});
+    await ds.initialize();
+    const repo = ds.getRepository(VersionedTable);
+    await expect(repo.update({id: '1'}, {name: 'Bob', version: 0} as Partial<VersionedTable>)).rejects.toThrow(
+      OptimisticLockError
+    );
+  });
+
+  it('update() re-throws non-ConditionalCheckFailedException errors', async () => {
+    const mockModel = makeMockDynamooseModel();
+    mockModel.update.mockRejectedValue(new Error('some other error'));
+    vi.spyOn(dynamoose, 'model').mockReturnValue(mockModel as any);
+    const ds = new DataSource({entities: [VersionedTable]});
+    await ds.initialize();
+    const repo = ds.getRepository(VersionedTable);
+    await expect(repo.update({id: '1'}, {name: 'Bob', version: 0} as Partial<VersionedTable>)).rejects.toThrow(
+      'some other error'
+    );
+  });
+
+  it('update() without version in changes does not add condition', async () => {
+    const mockModel = makeMockDynamooseModel();
+    mockModel.update.mockResolvedValue({id: '1', name: 'Bob', version: 0});
+    vi.spyOn(dynamoose, 'model').mockReturnValue(mockModel as any);
+    const ds = new DataSource({entities: [VersionedTable]});
+    await ds.initialize();
+    const repo = ds.getRepository(VersionedTable);
+    await repo.update({id: '1'}, {name: 'Bob'} as Partial<VersionedTable>);
+    expect(mockModel.update).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({name: 'Bob'}), undefined);
   });
 });

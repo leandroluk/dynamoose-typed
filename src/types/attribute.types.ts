@@ -147,6 +147,15 @@ export interface ArrayAttributeOptions extends BaseAttributeOptions, TransformOp
 export interface SetAttributeOptions extends BaseAttributeOptions, TransformOptions<Set<unknown>> {}
 
 /**
+ * Configuration options for `@VersionAttribute`.
+ * The version counter is fully managed by the library — no min/max/default/hashKey/rangeKey.
+ */
+export interface VersionAttributeOptions {
+  /** Override the DynamoDB attribute name (column alias). */
+  alias?: string;
+}
+
+/**
  * Supported attribute decorator categories within the library schema resolver.
  */
 export type AttributeKind =
@@ -159,7 +168,8 @@ export type AttributeKind =
   | 'set'
   | 'createDate'
   | 'updateDate'
-  | 'deleteDate';
+  | 'deleteDate'
+  | 'version';
 
 /**
  * Internal metadata structure representing a processed decorator attribute configuration.

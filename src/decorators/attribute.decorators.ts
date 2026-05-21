@@ -10,6 +10,7 @@ import type {
   StoredAttributeMeta,
   StringAttributeOptions,
   TimestampOptions,
+  VersionAttributeOptions,
 } from '#/types';
 import {addPendingAttribute} from './metadata.registry';
 
@@ -262,6 +263,28 @@ export function SetAttribute(typeRef: LazyType, options?: SetAttributeOptions): 
       kind: 'set',
       options: options ?? {},
       typeRef,
+    });
+  };
+}
+
+/**
+ * Optimistic-locking version counter. Auto-increments on every `update()`.
+ * Condition `version = expected` is applied; throws `OptimisticLockError` on conflict.
+ *
+ * @example
+ * ＠VersionAttribute()
+ * version!: number;
+ *
+ * ＠VersionAttribute('v')
+ * version!: number;
+ */
+export function VersionAttribute(aliasOrOptions?: string | VersionAttributeOptions): PropertyDecorator {
+  return (target: object, propertyKey: string | symbol) => {
+    const alias = typeof aliasOrOptions === 'string' ? aliasOrOptions : aliasOrOptions?.alias;
+    register(target, propertyKey, {
+      kind: 'version',
+      attributeName: alias,
+      options: {},
     });
   };
 }
