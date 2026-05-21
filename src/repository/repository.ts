@@ -1,5 +1,39 @@
 import type {InternalModel} from '#/model/internal-model';
-import type {AnyRecord, CountOptions, FindOptions, ItemKey, PaginatedResult} from '#/types';
+import type {AnyRecord, CountOptions, FilterCondition, FindOptions, ItemKey, PaginatedResult} from '#/types';
+
+function applyFilters<Q>(q: Q, filter: Record<string, FilterCondition>, aliasMap: Record<string, string>): Q {
+  for (const [propKey, cond] of Object.entries(filter)) {
+    const attrName = aliasMap[propKey] ?? propKey;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const f: any = (q as any).filter(attrName);
+    if (cond.eq !== undefined) {
+      q = f.eq(cond.eq);
+    } else if (cond.ne !== undefined) {
+      q = f.ne(cond.ne);
+    } else if (cond.lt !== undefined) {
+      q = f.lt(cond.lt);
+    } else if (cond.lte !== undefined) {
+      q = f.lte(cond.lte);
+    } else if (cond.gt !== undefined) {
+      q = f.gt(cond.gt);
+    } else if (cond.gte !== undefined) {
+      q = f.gte(cond.gte);
+    } else if (cond.between !== undefined) {
+      q = f.between(cond.between[0], cond.between[1]);
+    } else if (cond.beginsWith !== undefined) {
+      q = f.beginsWith(cond.beginsWith);
+    } else if (cond.contains !== undefined) {
+      q = f.contains(cond.contains);
+    } else if (cond.exists === true) {
+      q = f.exists();
+    } else if (cond.exists === false) {
+      q = f.not().exists();
+    } else if (cond.in !== undefined) {
+      q = f.in(cond.in);
+    }
+  }
+  return q;
+}
 import {type InputKey} from 'dynamoose/dist/General';
 
 /**
@@ -79,12 +113,79 @@ export class Repository<T extends object> {
   }
 
   /**
+   * Query items via a GSI. The index name is derived as `${attributeName}GlobalIndex`.
+   * Requires `index: true` on the corresponding attribute decorator.
+   */
+  async findByIndex(
+    attributeKey: keyof T & string,
+    hashValue: unknown,
+    options: FindOptions = {}
+  ): Promise<PaginatedResult<T>> {
+    const attrName = this.#model.schema.aliasMap[attributeKey] ?? attributeKey;
+    const indexName = `${attrName}GlobalIndex`;
+
+    let q = this.#model.raw
+      .query(attrName)
+      .eq(hashValue as string | number)
+      .using(indexName);
+
+    if (options.filter) {
+      q = applyFilters(q, options.filter, this.#model.schema.aliasMap);
+    }
+    if (options.limit) {
+      q = q.limit(options.limit);
+    }
+    if (options.consistent) {
+      q = q.consistent();
+    }
+    if (options.startAt) {
+      q = q.startAt(options.startAt);
+    }
+
+    const result = await q.exec();
+    let items = result.map((r: unknown) => this.#model.normalize(r));
+
+    if (!options.withDeleted && this.#model.hasSoftDelete()) {
+      const deleteDateKey = this.#model.schema.deleteDateKey!;
+      items = items.filter(
+        i => (i as AnyRecord)[deleteDateKey] === null || (i as AnyRecord)[deleteDateKey] === undefined
+      );
+    }
+
+    return {items, count: items.length, lastKey: result.lastKey as AnyRecord | undefined};
+  }
+
+  /**
    * Query all items by hash key value.
    */
   async find(hashValue: unknown, options: FindOptions = {}): Promise<PaginatedResult<T>> {
     const schema = this.#model.schema;
     let q = this.#model.raw.query(schema.hashKey).eq(hashValue as string | number);
 
+    if (options.sortKey && schema.rangeKey) {
+      const sk = options.sortKey;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const cond: any = (q as any).where(schema.rangeKey);
+      if (sk.between !== undefined) {
+        q = cond.between(sk.between[0], sk.between[1]);
+      } else if (sk.beginsWith !== undefined) {
+        q = cond.beginsWith(sk.beginsWith);
+      } else if (sk.eq !== undefined) {
+        q = cond.eq(sk.eq);
+      } else if (sk.lt !== undefined) {
+        q = cond.lt(sk.lt);
+      } else if (sk.lte !== undefined) {
+        q = cond.lte(sk.lte);
+      } else if (sk.gt !== undefined) {
+        q = cond.gt(sk.gt);
+      } else if (sk.gte !== undefined) {
+        q = cond.gte(sk.gte);
+      }
+    }
+
+    if (options.filter) {
+      q = applyFilters(q, options.filter, schema.aliasMap);
+    }
     if (options.limit) {
       q = q.limit(options.limit);
     }
@@ -113,6 +214,9 @@ export class Repository<T extends object> {
    */
   async scan(options: FindOptions = {}): Promise<PaginatedResult<T>> {
     let s = this.#model.raw.scan();
+    if (options.filter) {
+      s = applyFilters(s, options.filter, this.#model.schema.aliasMap);
+    }
     if (options.limit) {
       s = s.limit(options.limit);
     }
@@ -134,22 +238,45 @@ export class Repository<T extends object> {
   }
 
   /**
-   * Counts items matching the query/scan.
-   * Note: This performs a full scan/query and counts in memory.
-   * For large tables, consider using DynamoDBExpressions or DynamoDBMapper.
+   * Counts items via a full-table scan.
+   *
+   * When `withDeleted` is true (or the table has no soft-delete), uses DynamoDB
+   * `Select: COUNT` — no item bodies are returned, significantly cheaper for
+   * large tables.
+   *
+   * When a sparse GSI is configured on the @DeleteDateAttribute (`index: true`),
+   * uses two `Select: COUNT` scans: total minus GSI count (only soft-deleted
+   * items appear in the sparse index). Still no item bodies.
+   *
+   * Falls back to a full scan + client-side filter when no GSI is available,
+   * because `restore()` stores `deleted_at = NULL` (DynamoDB NULL type) rather
+   * than removing the attribute — `attribute_not_exists` alone would miss
+   * restored items.
    */
   async count(options: CountOptions = {}): Promise<number> {
-    const result = await this.#model.raw.scan().exec();
-    let items = result.map(r => this.#model.normalize(r));
+    type CountResult = {exec(): Promise<{count: number}>};
 
-    if (!options.withDeleted && this.#model.hasSoftDelete()) {
-      const deleteDateKey = this.#model.schema.deleteDateKey!;
-      items = items.filter(
-        i => (i as AnyRecord)[deleteDateKey] === null || (i as AnyRecord)[deleteDateKey] === undefined
-      );
+    if (options.withDeleted || !this.#model.hasSoftDelete()) {
+      const result = await (this.#model.raw.scan().count() as unknown as CountResult).exec();
+      return result.count;
     }
 
-    return items.length;
+    const {deleteDateIndexName} = this.#model.schema;
+    if (deleteDateIndexName) {
+      const totalScan = this.#model.raw.scan().count() as unknown as CountResult;
+      const gsiScan = (this.#model.raw.scan() as unknown as {using(n: string): {count(): CountResult}})
+        .using(deleteDateIndexName)
+        .count();
+      const [total, deleted] = await Promise.all([totalScan.exec(), gsiScan.exec()]);
+      return total.count - deleted.count;
+    }
+
+    const result = await this.#model.raw.scan().exec();
+    const attrName = this.#model.schema.aliasMap[this.#model.schema.deleteDateKey!]!;
+    return result.filter((r: unknown) => {
+      const v = (r as AnyRecord)[attrName];
+      return v === null || v === undefined;
+    }).length;
   }
 
   /**
@@ -185,7 +312,7 @@ export class Repository<T extends object> {
    * Restores a soft-deleted item by clearing its @DeleteDateAttribute.
    */
   async restore(key: ItemKey<T>): Promise<void> {
-    const attrKey = this.#model.toAttributeKey(key) as unknown as InputKey;
+    const attrKey = this.#model.toAttributeKey(key) as unknown as object;
     const patch: AnyRecord = {};
     this.#model.clearDeleteTimestamp(patch);
     await this.#model.raw.update(attrKey, patch);
@@ -200,7 +327,13 @@ export class Repository<T extends object> {
       this.#model.injectCreateTimestamps(raw);
       return raw;
     });
+    for (const raw of raws) {
+      await this.#model.runHook('beforeInsert', raw);
+    }
     await this.#model.raw.batchPut(raws);
+    for (const raw of raws) {
+      await this.#model.runHook('afterInsert', raw);
+    }
   }
 
   /**

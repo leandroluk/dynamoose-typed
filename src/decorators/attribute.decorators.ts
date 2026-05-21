@@ -51,7 +51,7 @@ export function Attribute(options: AnyRecord): PropertyDecorator {
 
 /**
  * @example
- * ＠StringAttribute({ hashKey: true, default: uuid.v7, trim: true })
+ * ＠StringAttribute({ hashKey: true, default: crypto.randomUUID, trim: true })
  * id!: string;
  *
  * ＠StringAttribute('alias_name', { required: true, minLength: 3 })
@@ -116,8 +116,11 @@ export function BooleanAttribute(
 
 /**
  * @example
- * ＠DateAttribute('start_date', { type: String })
+ * ＠DateAttribute('start_date', { format: 'iso' })
  * startDate!: Date;
+ *
+ * ＠DateAttribute('expires_at', { ttl: true })
+ * expiresAt!: Date;
  */
 export function DateAttribute(
   aliasOrOptions?: string | DateAttributeOptions,
@@ -126,11 +129,15 @@ export function DateAttribute(
   return (target: object, propertyKey: string | symbol) => {
     const alias = typeof aliasOrOptions === 'string' ? aliasOrOptions : undefined;
     const currentOptions = (typeof aliasOrOptions === 'object' ? aliasOrOptions : options) ?? {};
+    const isTtl = (currentOptions as {ttl?: boolean}).ttl === true;
+    const timestampType = isTtl
+      ? 'ttl'
+      : (((currentOptions as {format?: string}).format as 'iso' | 'epoch' | undefined) ?? 'epoch');
     register(target, propertyKey, {
       kind: 'date',
       attributeName: alias,
       options: currentOptions,
-      timestampType: currentOptions.type,
+      timestampType,
     });
   };
 }
@@ -139,7 +146,7 @@ export function DateAttribute(
  * Auto-set to current date on insert. Never updated after creation.
  *
  * @example
- * ＠CreateDateAttribute('created_at', { type: String })
+ * ＠CreateDateAttribute('created_at', { format: 'iso' })
  * createdAt!: Date;
  */
 export function CreateDateAttribute(
@@ -153,7 +160,7 @@ export function CreateDateAttribute(
       kind: 'createDate',
       attributeName: alias,
       options: currentOptions,
-      timestampType: currentOptions.type,
+      timestampType: currentOptions.format ?? 'epoch',
     });
   };
 }
@@ -162,7 +169,7 @@ export function CreateDateAttribute(
  * Auto-set to current date on every save/update.
  *
  * @example
- * ＠UpdateDateAttribute('updated_at', { type: Number })
+ * ＠UpdateDateAttribute('updated_at', { format: 'epoch' })
  * updatedAt!: Date;
  */
 export function UpdateDateAttribute(
@@ -176,7 +183,7 @@ export function UpdateDateAttribute(
       kind: 'updateDate',
       attributeName: alias,
       options: currentOptions,
-      timestampType: currentOptions.type,
+      timestampType: currentOptions.format ?? 'epoch',
     });
   };
 }
@@ -186,7 +193,7 @@ export function UpdateDateAttribute(
  * When present on a table class, `delete()` becomes a soft delete by default.
  *
  * @example
- * ＠DeleteDateAttribute('deleted_at', { type: Date })
+ * ＠DeleteDateAttribute('deleted_at')
  * deletedAt!: Date | null;
  */
 export function DeleteDateAttribute(
@@ -200,7 +207,7 @@ export function DeleteDateAttribute(
       kind: 'deleteDate',
       attributeName: alias,
       options: currentOptions,
-      timestampType: currentOptions.type,
+      timestampType: currentOptions.format ?? 'epoch',
     });
   };
 }

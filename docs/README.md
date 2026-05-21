@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="docs/assets/banner.png" alt="Dynamoose Typed" />
+  <img src="assets/banner.png" alt="Dynamoose Typed" />
 </div>
 <br>
 
@@ -189,6 +189,27 @@ const { items: after } = await userRepository.find('user-1', {
   sortKey: { beginsWith: '2024-' },
 });
 
+// server-side filter expressions (AND'd; property keys are alias-aware)
+const { items: adults } = await userRepository.find('partition-key', {
+  filter: {
+    age: { gte: 18 },
+    name: { beginsWith: 'Al' },
+  },
+});
+
+// available filter operators:
+// eq, ne, lt, lte, gt, gte         — equality / comparison
+// between: [lo, hi]                — range (inclusive)
+// beginsWith: 'prefix'             — string prefix
+// contains: 'substr'               — substring / set membership
+// exists: true | false             — attribute presence
+// in: [v1, v2, v3]                 — value set
+
+// filters also work in scan() and findByIndex()
+const { items: active } = await userRepository.scan({
+  filter: { isActive: { eq: true } },
+});
+
 // full-table scan
 const { items: allUsers } = await userRepository.scan({ withDeleted: false });
 
@@ -317,6 +338,8 @@ const totalCount = await repo.count({ withDeleted: true });
 | Soft-delete + GSI (`index: true`) | 2× `Select: COUNT` (total − GSI) | No |
 | Soft-delete, no GSI | Full scan + client-side filter | Yes |
 
+See the [full GSI guide](guides/gsi-indexes.md) for details.
+
 ## Hooks
 
 Hooks run before/after each write operation. Declare them on `@DynamoTable`:
@@ -385,3 +408,4 @@ beforeEach(() => dataSource.clear());
 If you find this project useful, please consider supporting its development:
 
 <a href="https://buymeacoffee.com/leandroluk" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" style="height: 42px !important;width: 151.2px !important;" ></a>
+

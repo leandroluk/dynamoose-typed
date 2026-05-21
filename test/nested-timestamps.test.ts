@@ -30,8 +30,8 @@ describe('injectCreateTimestamps — nested subdocs', () => {
     const item = {id: '1'} as Record<string, unknown>;
     model.injectCreateTimestamps(item);
 
-    expect(item['created_at']).toBeInstanceOf(Date);
-    expect(item['updated_at']).toBeInstanceOf(Date);
+    expect(typeof item['created_at']).toBe('number');
+    expect(typeof item['updated_at']).toBe('number');
   });
 
   it('injects timestamps into a nested @DynamoDocument', () => {
@@ -41,8 +41,8 @@ describe('injectCreateTimestamps — nested subdocs', () => {
 
     model.injectCreateTimestamps(item);
 
-    expect(addr['created_at']).toBeInstanceOf(Date);
-    expect(addr['updated_at']).toBeInstanceOf(Date);
+    expect(typeof addr['created_at']).toBe('number');
+    expect(typeof addr['updated_at']).toBe('number');
   });
 
   it('injects timestamps into every element of an array of @DynamoDocument', () => {
@@ -53,10 +53,10 @@ describe('injectCreateTimestamps — nested subdocs', () => {
 
     model.injectCreateTimestamps(item);
 
-    expect(line1['created_at']).toBeInstanceOf(Date);
-    expect(line1['updated_at']).toBeInstanceOf(Date);
-    expect(line2['created_at']).toBeInstanceOf(Date);
-    expect(line2['updated_at']).toBeInstanceOf(Date);
+    expect(typeof line1['created_at']).toBe('number');
+    expect(typeof line1['updated_at']).toBe('number');
+    expect(typeof line2['created_at']).toBe('number');
+    expect(typeof line2['updated_at']).toBe('number');
   });
 
   it('does not throw when nested field is absent (undefined)', () => {
@@ -72,7 +72,7 @@ describe('injectUpdateTimestamp — nested subdocs', () => {
     const item = {id: '1'} as Record<string, unknown>;
     model.injectUpdateTimestamp(item);
 
-    expect(item['updated_at']).toBeInstanceOf(Date);
+    expect(typeof item['updated_at']).toBe('number');
     expect(item['created_at']).toBeUndefined();
   });
 
@@ -83,7 +83,7 @@ describe('injectUpdateTimestamp — nested subdocs', () => {
 
     model.injectUpdateTimestamp(item);
 
-    expect(addr['updated_at']).toBeInstanceOf(Date);
+    expect(typeof addr['updated_at']).toBe('number');
     expect(addr['created_at']).toBeUndefined();
   });
 
@@ -94,11 +94,11 @@ describe('injectUpdateTimestamp — nested subdocs', () => {
 
     model.injectUpdateTimestamp(item);
 
-    expect(line['updated_at']).toBeInstanceOf(Date);
+    expect(typeof line['updated_at']).toBe('number');
     expect(line['created_at']).toBeUndefined();
   });
 
-  it('root and nested timestamps are the same Date instance (same now)', () => {
+  it('root and nested timestamps are the same value (same now)', () => {
     const model = makeModel();
     const addr: Record<string, unknown> = {street: 'Rua C'};
     const line: Record<string, unknown> = {sku: 'D', qty: 1};
@@ -108,9 +108,9 @@ describe('injectUpdateTimestamp — nested subdocs', () => {
     model.injectCreateTimestamps(item);
     const after = Date.now();
 
-    const rootTs = (item['created_at'] as Date).getTime();
-    const addrTs = (addr['created_at'] as Date).getTime();
-    const lineTs = (line['created_at'] as Date).getTime();
+    const rootTs = item['created_at'] as number;
+    const addrTs = addr['created_at'] as number;
+    const lineTs = line['created_at'] as number;
 
     // All three timestamps must be the same value (same `now` captured once)
     expect(rootTs).toBe(addrTs);

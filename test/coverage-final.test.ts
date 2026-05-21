@@ -9,10 +9,6 @@
  * attribute.decorators.ts       uncovered option branches
  */
 
-import {DataSource} from '#/data-source/data-source';
-import {Attribute} from '#/decorators/attribute.decorators';
-import {DynamoDocument, DynamoTable, DynamoTable as DynamoTableClass} from '#/decorators/class.decorators';
-import {getTableMeta} from '#/decorators/metadata.registry';
 import {
   ArrayAttribute,
   BooleanAttribute,
@@ -24,7 +20,11 @@ import {
   SetAttribute,
   StringAttribute,
   UpdateDateAttribute,
-} from '#/index';
+} from '#';
+import {DataSource} from '#/data-source/data-source';
+import {Attribute} from '#/decorators/attribute.decorators';
+import {DynamoDocument, DynamoTable, DynamoTable as DynamoTableClass} from '#/decorators/class.decorators';
+import {getTableMeta} from '#/decorators/metadata.registry';
 import {InternalModel} from '#/model/internal-model';
 import {resolveTableSchema} from '#/schema';
 import type {AnyRecord} from '#/types';
@@ -51,32 +51,68 @@ interface MockDynamooseModel {
   scan: Mock;
 }
 
-const makeMockDynamooseModel = (): MockDynamooseModel => ({
-  get: vi.fn(),
-  create: vi.fn(),
-  update: vi.fn(),
-  delete: vi.fn(),
-  batchGet: vi.fn(),
-  batchPut: vi.fn(),
-  batchDelete: vi.fn(),
-  transaction: {
-    create: vi.fn().mockReturnValue({type: 'create'}),
-    update: vi.fn().mockReturnValue({type: 'update'}),
-    delete: vi.fn().mockReturnValue({type: 'delete'}),
-  },
-  query: vi.fn().mockReturnValue({
+const makeMockDynamooseModel = (): MockDynamooseModel => {
+  const queryChain: Record<string, any> = {
     eq: vi.fn().mockReturnThis(),
+    ne: vi.fn().mockReturnThis(),
+    lt: vi.fn().mockReturnThis(),
+    lte: vi.fn().mockReturnThis(),
+    gt: vi.fn().mockReturnThis(),
+    gte: vi.fn().mockReturnThis(),
+    between: vi.fn().mockReturnThis(),
+    beginsWith: vi.fn().mockReturnThis(),
+    contains: vi.fn().mockReturnThis(),
+    in: vi.fn().mockReturnThis(),
+    exists: vi.fn().mockReturnThis(),
     limit: vi.fn().mockReturnThis(),
     consistent: vi.fn().mockReturnThis(),
     startAt: vi.fn().mockReturnThis(),
+    using: vi.fn().mockReturnThis(),
     exec: vi.fn().mockResolvedValue(Object.assign([], {lastKey: undefined})),
-  }),
-  scan: vi.fn().mockReturnValue({
+    where: vi.fn().mockReturnValue({
+      eq: vi.fn().mockReturnThis(),
+      lt: vi.fn().mockReturnThis(),
+      lte: vi.fn().mockReturnThis(),
+      gt: vi.fn().mockReturnThis(),
+      gte: vi.fn().mockReturnThis(),
+      between: vi.fn().mockReturnThis(),
+      beginsWith: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockReturnThis(),
+      consistent: vi.fn().mockReturnThis(),
+      startAt: vi.fn().mockReturnThis(),
+      exec: vi.fn().mockResolvedValue(Object.assign([], {lastKey: undefined})),
+    }),
+  };
+  queryChain['filter'] = vi.fn().mockReturnValue(queryChain);
+  queryChain['not'] = vi.fn().mockReturnValue({eq: vi.fn(() => queryChain), exists: vi.fn(() => queryChain)});
+
+  const scanChain: Record<string, any> = {
     limit: vi.fn().mockReturnThis(),
     startAt: vi.fn().mockReturnThis(),
+    count: vi.fn().mockReturnThis(),
+    using: vi.fn().mockReturnThis(),
     exec: vi.fn().mockResolvedValue(Object.assign([], {lastKey: undefined})),
-  }),
-});
+  };
+  scanChain['filter'] = vi.fn().mockReturnValue(scanChain);
+  scanChain['not'] = vi.fn().mockReturnValue({eq: vi.fn(() => scanChain), exists: vi.fn(() => scanChain)});
+
+  return {
+    get: vi.fn(),
+    create: vi.fn(),
+    update: vi.fn(),
+    delete: vi.fn(),
+    batchGet: vi.fn(),
+    batchPut: vi.fn(),
+    batchDelete: vi.fn(),
+    transaction: {
+      create: vi.fn().mockReturnValue({type: 'create'}),
+      update: vi.fn().mockReturnValue({type: 'update'}),
+      delete: vi.fn().mockReturnValue({type: 'delete'}),
+    },
+    query: vi.fn().mockReturnValue(queryChain),
+    scan: vi.fn().mockReturnValue(scanChain),
+  };
+};
 
 const makeItem = (data: Record<string, unknown>): Record<string, unknown> => ({
   ...data,
@@ -108,14 +144,30 @@ vi.mock('dynamoose', async importOriginal => {
     },
     query: vi.fn().mockReturnValue({
       eq: vi.fn().mockReturnThis(),
+      where: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnThis(),
+        lt: vi.fn().mockReturnThis(),
+        lte: vi.fn().mockReturnThis(),
+        gt: vi.fn().mockReturnThis(),
+        gte: vi.fn().mockReturnThis(),
+        between: vi.fn().mockReturnThis(),
+        beginsWith: vi.fn().mockReturnThis(),
+        limit: vi.fn().mockReturnThis(),
+        consistent: vi.fn().mockReturnThis(),
+        startAt: vi.fn().mockReturnThis(),
+        exec: vi.fn().mockResolvedValue(Object.assign([], {lastKey: undefined})),
+      }),
       limit: vi.fn().mockReturnThis(),
       consistent: vi.fn().mockReturnThis(),
       startAt: vi.fn().mockReturnThis(),
+      using: vi.fn().mockReturnThis(),
       exec: vi.fn().mockResolvedValue(Object.assign([], {lastKey: undefined})),
     }),
     scan: vi.fn().mockReturnValue({
       limit: vi.fn().mockReturnThis(),
       startAt: vi.fn().mockReturnThis(),
+      count: vi.fn().mockReturnThis(),
+      using: vi.fn().mockReturnThis(),
       exec: vi.fn().mockResolvedValue(Object.assign([], {lastKey: undefined})),
     }),
   };
@@ -658,19 +710,19 @@ describe('attribute decorator option branches', () => {
     expect(flagAttr.kind).toBe('boolean');
   });
 
-  it('DateAttribute with alias string and type option', () => {
+  it('DateAttribute with alias string and format option', () => {
     @DynamoTable('date-alias')
     class DateAlias {
       @StringAttribute({hashKey: true}) id!: string;
 
-      @DateAttribute('start_date', {type: String})
+      @DateAttribute('start_date', {format: 'iso'})
       startDate!: Date;
     }
 
     const tableMeta = getTableMeta(DateAlias)!;
     const startDateAttr = tableMeta.attributes.find(attr => attr.propertyKey === 'startDate')!;
     expect(startDateAttr.attributeName).toBe('start_date');
-    expect(startDateAttr.timestampType).toBe(String);
+    expect(startDateAttr.timestampType).toBe('iso');
   });
 
   it('DateAttribute with only options object (no alias)', () => {
@@ -678,13 +730,27 @@ describe('attribute decorator option branches', () => {
     class DateOptsOnly {
       @StringAttribute({hashKey: true}) id!: string;
 
-      @DateAttribute({type: Number})
+      @DateAttribute({format: 'epoch'})
       ts!: Date;
     }
 
     const tableMeta = getTableMeta(DateOptsOnly)!;
     const tsAttr = tableMeta.attributes.find(attr => attr.propertyKey === 'ts')!;
-    expect(tsAttr.timestampType).toBe(Number);
+    expect(tsAttr.timestampType).toBe('epoch');
+  });
+
+  it('DateAttribute with ttl: true sets timestampType to ttl', () => {
+    @DynamoTable('date-ttl')
+    class DateTtl {
+      @StringAttribute({hashKey: true}) id!: string;
+
+      @DateAttribute({ttl: true})
+      expiresAt!: Date;
+    }
+
+    const tableMeta = getTableMeta(DateTtl)!;
+    const expiresAtAttr = tableMeta.attributes.find(attr => attr.propertyKey === 'expiresAt')!;
+    expect(expiresAtAttr.timestampType).toBe('ttl');
   });
 
   it('CreateDateAttribute with only options object (no alias)', () => {
@@ -692,14 +758,14 @@ describe('attribute decorator option branches', () => {
     class CreateOpts {
       @StringAttribute({hashKey: true}) id!: string;
 
-      @CreateDateAttribute({type: Number})
+      @CreateDateAttribute({format: 'epoch'})
       createdAt!: Date;
     }
 
     const tableMeta = getTableMeta(CreateOpts)!;
     const createdAtAttr = tableMeta.attributes.find(attr => attr.propertyKey === 'createdAt')!;
     expect(createdAtAttr.kind).toBe('createDate');
-    expect(createdAtAttr.timestampType).toBe(Number);
+    expect(createdAtAttr.timestampType).toBe('epoch');
   });
 
   it('UpdateDateAttribute with alias string', () => {
@@ -707,7 +773,7 @@ describe('attribute decorator option branches', () => {
     class UpdateAlias {
       @StringAttribute({hashKey: true}) id!: string;
 
-      @UpdateDateAttribute('updated_at', {type: String})
+      @UpdateDateAttribute('updated_at', {format: 'iso'})
       updatedAt!: Date;
     }
 
@@ -722,14 +788,14 @@ describe('attribute decorator option branches', () => {
     class UpdateOpts {
       @StringAttribute({hashKey: true}) id!: string;
 
-      @UpdateDateAttribute({type: Date})
+      @UpdateDateAttribute({})
       updatedAt!: Date;
     }
 
     const tableMeta = getTableMeta(UpdateOpts)!;
     const updatedAtAttr = tableMeta.attributes.find(attr => attr.propertyKey === 'updatedAt')!;
     expect(updatedAtAttr.kind).toBe('updateDate');
-    expect(updatedAtAttr.timestampType).toBe(Date);
+    expect(updatedAtAttr.timestampType).toBe('epoch');
   });
 
   it('DeleteDateAttribute with alias string', () => {
@@ -737,7 +803,7 @@ describe('attribute decorator option branches', () => {
     class DeleteAlias {
       @StringAttribute({hashKey: true}) id!: string;
 
-      @DeleteDateAttribute('deleted_at', {type: Date})
+      @DeleteDateAttribute('deleted_at')
       deletedAt!: Date | null;
     }
 
@@ -752,14 +818,59 @@ describe('attribute decorator option branches', () => {
     class DeleteOpts {
       @StringAttribute({hashKey: true}) id!: string;
 
-      @DeleteDateAttribute({type: String})
+      @DeleteDateAttribute({format: 'iso'})
       deletedAt!: Date | null;
     }
 
     const tableMeta = getTableMeta(DeleteOpts)!;
     const deletedAtAttr = tableMeta.attributes.find(attr => attr.propertyKey === 'deletedAt')!;
     expect(deletedAtAttr.kind).toBe('deleteDate');
-    expect(deletedAtAttr.timestampType).toBe(String);
+    expect(deletedAtAttr.timestampType).toBe('iso');
+  });
+
+  it('DeleteDateAttribute with index:true creates GSI entry and deleteDateIndexName', () => {
+    @DynamoTable('delete-gsi')
+    class DeleteGsiTable {
+      @StringAttribute({hashKey: true}) id!: string;
+
+      @DeleteDateAttribute('deleted_at', {index: true})
+      deletedAt!: Date | null;
+    }
+
+    const tableSchema = resolveTableSchema(DeleteGsiTable);
+    expect((tableSchema.definition['deleted_at'] as any).index).toBe(true);
+    expect(tableSchema.deleteDateIndexName).toBe('deleted_atGlobalIndex');
+  });
+
+  it('CreateDateAttribute with index:true adds GSI to schema definition', () => {
+    @DynamoTable('create-gsi')
+    class CreateGsiTable {
+      @StringAttribute({hashKey: true}) id!: string;
+
+      @CreateDateAttribute('created_at', {index: true})
+      createdAt!: Date;
+    }
+
+    const tableSchema = resolveTableSchema(CreateGsiTable);
+    expect((tableSchema.definition['created_at'] as any).index).toBe(true);
+  });
+
+  it('UpdateDateAttribute with index:true adds GSI to schema definition', () => {
+    @DynamoTable('update-gsi')
+    class UpdateGsiTable {
+      @StringAttribute({hashKey: true}) id!: string;
+
+      @UpdateDateAttribute('updated_at', {index: true})
+      updatedAt!: Date;
+    }
+
+    const tableSchema = resolveTableSchema(UpdateGsiTable);
+    expect((tableSchema.definition['updated_at'] as any).index).toBe(true);
+  });
+
+  it('DeleteDateAttribute without index:true leaves deleteDateIndexName undefined', () => {
+    const tableSchema = resolveTableSchema(UserTable);
+    expect(tableSchema.deleteDateIndexName).toBeUndefined();
   });
 
   it('NestedAttribute with opts', () => {
@@ -897,7 +1008,7 @@ describe('Branch coverage — final gaps', () => {
     const tableMeta = getTableMeta(DateNoArgs)!;
     const tsAttr = tableMeta.attributes.find(attr => attr.propertyKey === 'ts')!;
     expect(tsAttr.kind).toBe('date');
-    expect(tsAttr.timestampType).toBeUndefined();
+    expect(tsAttr.timestampType).toBe('epoch');
   });
 
   it('injectTimestampsDeep skips null elements inside an array', () => {
@@ -963,15 +1074,15 @@ describe('Branch coverage — final gaps', () => {
     expect(scanResult.items).toHaveLength(1);
   });
 
-  it('count() with withDeleted:true skips soft-delete filter', async () => {
-    const deletedItemData = {id: '1', deleted_at: new Date()};
-    const countExecMock = vi
-      .fn()
-      .mockResolvedValue(Object.assign([{...deletedItemData, toJSON: () => deletedItemData}], {lastKey: undefined}));
+  it('count() with withDeleted:true uses Select: COUNT (no item bodies)', async () => {
+    const countExecMock = vi.fn().mockResolvedValue({count: 1, scannedCount: 1});
     vi.spyOn(dynamoose, 'model').mockReturnValue({
-      scan: vi
-        .fn()
-        .mockReturnValue({limit: vi.fn().mockReturnThis(), startAt: vi.fn().mockReturnThis(), exec: countExecMock}),
+      scan: vi.fn().mockReturnValue({
+        limit: vi.fn().mockReturnThis(),
+        startAt: vi.fn().mockReturnThis(),
+        count: vi.fn().mockReturnThis(),
+        exec: countExecMock,
+      }),
     } as any);
     const dataSource = new DataSource({entities: [UserTable]});
     await dataSource.initialize();

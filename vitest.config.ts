@@ -16,7 +16,7 @@ export default defineConfig({
   test: {
     globals: false,
     environment: 'node',
-    include: ['test/**/*.{test,spec}.{ts,mts,cts,tsx}'],
+    include: ['test/**/*.{test,spec}.ts'],
     coverage: {
       reportsDirectory: '.coverage',
       provider: 'v8',

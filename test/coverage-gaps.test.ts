@@ -23,10 +23,10 @@
  * transaction-manager.ts  – all write/read paths
  */
 
+import {ArrayAttribute, CreateDateAttribute, NestedAttribute, StringAttribute} from '#';
 import {DataSource} from '#/data-source/data-source';
 import {DynamoDocument, DynamoTable} from '#/decorators/class.decorators';
 import {getDocumentMeta, getTableMeta} from '#/decorators/metadata.registry';
-import {ArrayAttribute, CreateDateAttribute, NestedAttribute, StringAttribute} from '#/index';
 import {EntityManager} from '#/manager/entity-manager';
 import {TransactionCollector} from '#/manager/transaction-collector';
 import {TransactionManager} from '#/manager/transaction-manager';
@@ -58,32 +58,68 @@ interface MockDynamooseModel {
   scan: Mock;
 }
 
-const makeMockDynamooseModel = (): MockDynamooseModel => ({
-  get: vi.fn(),
-  create: vi.fn(),
-  update: vi.fn(),
-  delete: vi.fn(),
-  batchGet: vi.fn(),
-  batchPut: vi.fn(),
-  batchDelete: vi.fn(),
-  transaction: {
-    create: vi.fn().mockReturnValue({type: 'create'}),
-    update: vi.fn().mockReturnValue({type: 'update'}),
-    delete: vi.fn().mockReturnValue({type: 'delete'}),
-  },
-  query: vi.fn().mockReturnValue({
+const makeMockDynamooseModel = (): MockDynamooseModel => {
+  const queryChain: Record<string, any> = {
     eq: vi.fn().mockReturnThis(),
+    ne: vi.fn().mockReturnThis(),
+    lt: vi.fn().mockReturnThis(),
+    lte: vi.fn().mockReturnThis(),
+    gt: vi.fn().mockReturnThis(),
+    gte: vi.fn().mockReturnThis(),
+    between: vi.fn().mockReturnThis(),
+    beginsWith: vi.fn().mockReturnThis(),
+    contains: vi.fn().mockReturnThis(),
+    in: vi.fn().mockReturnThis(),
+    exists: vi.fn().mockReturnThis(),
     limit: vi.fn().mockReturnThis(),
     consistent: vi.fn().mockReturnThis(),
     startAt: vi.fn().mockReturnThis(),
+    using: vi.fn().mockReturnThis(),
     exec: vi.fn().mockResolvedValue(Object.assign([], {lastKey: undefined})),
-  }),
-  scan: vi.fn().mockReturnValue({
+    where: vi.fn().mockReturnValue({
+      eq: vi.fn().mockReturnThis(),
+      lt: vi.fn().mockReturnThis(),
+      lte: vi.fn().mockReturnThis(),
+      gt: vi.fn().mockReturnThis(),
+      gte: vi.fn().mockReturnThis(),
+      between: vi.fn().mockReturnThis(),
+      beginsWith: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockReturnThis(),
+      consistent: vi.fn().mockReturnThis(),
+      startAt: vi.fn().mockReturnThis(),
+      exec: vi.fn().mockResolvedValue(Object.assign([], {lastKey: undefined})),
+    }),
+  };
+  queryChain['filter'] = vi.fn().mockReturnValue(queryChain);
+  queryChain['not'] = vi.fn().mockReturnValue({eq: vi.fn(() => queryChain), exists: vi.fn(() => queryChain)});
+
+  const scanChain: Record<string, any> = {
     limit: vi.fn().mockReturnThis(),
     startAt: vi.fn().mockReturnThis(),
-    exec: vi.fn().mockResolvedValue(Object.assign([], {lastKey: undefined})),
-  }),
-});
+    count: vi.fn().mockReturnThis(),
+    using: vi.fn().mockReturnThis(),
+    exec: vi.fn().mockResolvedValue(Object.assign([], {lastKey: undefined, count: 0})),
+  };
+  scanChain['filter'] = vi.fn().mockReturnValue(scanChain);
+  scanChain['not'] = vi.fn().mockReturnValue({eq: vi.fn(() => scanChain), exists: vi.fn(() => scanChain)});
+
+  return {
+    get: vi.fn(),
+    create: vi.fn(),
+    update: vi.fn(),
+    delete: vi.fn(),
+    batchGet: vi.fn(),
+    batchPut: vi.fn(),
+    batchDelete: vi.fn(),
+    transaction: {
+      create: vi.fn().mockReturnValue({type: 'create'}),
+      update: vi.fn().mockReturnValue({type: 'update'}),
+      delete: vi.fn().mockReturnValue({type: 'delete'}),
+    },
+    query: vi.fn().mockReturnValue(queryChain),
+    scan: vi.fn().mockReturnValue(scanChain),
+  };
+};
 
 const makeInternalModel = <T extends object>(tableCtor: new () => T): InternalModel<T> => {
   const tableSchema = resolveTableSchema(tableCtor);
@@ -122,11 +158,14 @@ vi.mock('dynamoose', async importOriginal => {
       limit: vi.fn().mockReturnThis(),
       consistent: vi.fn().mockReturnThis(),
       startAt: vi.fn().mockReturnThis(),
+      using: vi.fn().mockReturnThis(),
       exec: vi.fn().mockResolvedValue(Object.assign([], {lastKey: undefined})),
     }),
     scan: vi.fn().mockReturnValue({
       limit: vi.fn().mockReturnThis(),
       startAt: vi.fn().mockReturnThis(),
+      count: vi.fn().mockReturnThis(),
+      using: vi.fn().mockReturnThis(),
       exec: vi.fn().mockResolvedValue(Object.assign([], {lastKey: undefined})),
     }),
   };
@@ -227,7 +266,7 @@ describe('schema-builder edge cases', () => {
       @StringAttribute({hashKey: true})
       id!: string;
 
-      @CreateDateAttribute({type: String})
+      @CreateDateAttribute({format: 'iso'})
       createdAt!: Date;
     }
 
@@ -340,7 +379,7 @@ describe('InternalModel edge cases', () => {
     const userInternalModel = makeInternalModel(UserTable);
     const userRecord: AnyRecord = {id: '1'};
     userInternalModel.injectDeleteTimestamp(userRecord);
-    expect(userRecord['deleted_at']).toBeInstanceOf(Date);
+    expect(typeof userRecord['deleted_at']).toBe('number');
   });
 
   it('clearDeleteTimestamp sets deleted_at to null', () => {

@@ -1,8 +1,8 @@
 import {getDocumentMeta, getTableMeta} from '#/decorators/metadata.registry';
 import type {DocumentMeta, StoredAttributeMeta} from '#/types';
 
-function timestampStorageType(meta: StoredAttributeMeta): StringConstructor | NumberConstructor | DateConstructor {
-  return (meta.timestampType as StringConstructor | NumberConstructor | DateConstructor | undefined) ?? Date;
+function fmtToStorageType(fmt: 'iso' | 'epoch' | 'ttl' | undefined): StringConstructor | NumberConstructor {
+  return fmt === 'iso' ? String : Number;
 }
 
 /**
@@ -66,6 +66,9 @@ function buildDefinition(attributes: StoredAttributeMeta[]): Record<string, unkn
         if (opts['set']) {
           entry['set'] = opts['set'];
         }
+        if (opts['index']) {
+          entry['index'] = true;
+        }
         def[key] = entry;
         break;
       }
@@ -99,6 +102,9 @@ function buildDefinition(attributes: StoredAttributeMeta[]): Record<string, unkn
         if (opts['set']) {
           entry['set'] = opts['set'];
         }
+        if (opts['index']) {
+          entry['index'] = true;
+        }
         def[key] = entry;
         break;
       }
@@ -115,20 +121,49 @@ function buildDefinition(attributes: StoredAttributeMeta[]): Record<string, unkn
         if (opts['set']) {
           entry['set'] = opts['set'];
         }
+        if (opts['index']) {
+          entry['index'] = true;
+        }
         def[key] = entry;
         break;
       }
 
-      case 'date':
+      case 'date': {
+        const isTtl = attr.timestampType === 'ttl';
+        const fmt = attr.timestampType ?? 'epoch';
+        const entry: Record<string, unknown> = {
+          type: fmtToStorageType(fmt),
+          required: opts['required'],
+          default: opts['default'],
+        };
+        if (isTtl) {
+          entry['get'] = opts['get'] ?? ((n: number): Date => new Date(n * 1000));
+          entry['set'] = opts['set'] ?? ((d: Date): number => Math.floor(d.getTime() / 1000));
+        } else {
+          if (opts['get']) {
+            entry['get'] = opts['get'];
+          }
+          if (opts['set']) {
+            entry['set'] = opts['set'];
+          }
+        }
+        if (opts['index']) {
+          entry['index'] = true;
+        }
+        def[key] = entry;
+        break;
+      }
+
       case 'createDate':
       case 'updateDate':
       case 'deleteDate': {
+        const fmt = (attr.timestampType ?? 'epoch') as 'iso' | 'epoch';
         const entry: Record<string, unknown> = {
-          type: timestampStorageType(attr),
+          type: fmtToStorageType(fmt),
           required: attr.kind === 'deleteDate' ? false : opts['required'],
           default:
             attr.kind === 'createDate' || attr.kind === 'updateDate'
-              ? (): string | number | Date => serializeDate(new Date(), timestampStorageType(attr))
+              ? (): string | number => serializeDate(new Date(), fmt)
               : opts['default'],
         };
         if (opts['get']) {
@@ -136,6 +171,9 @@ function buildDefinition(attributes: StoredAttributeMeta[]): Record<string, unkn
         }
         if (opts['set']) {
           entry['set'] = opts['set'];
+        }
+        if (opts['index']) {
+          entry['index'] = true;
         }
         def[key] = entry;
         break;
@@ -159,6 +197,9 @@ function buildDefinition(attributes: StoredAttributeMeta[]): Record<string, unkn
         }
         if (opts['set']) {
           entry['set'] = opts['set'];
+        }
+        if (opts['index']) {
+          entry['index'] = true;
         }
         def[key] = entry;
         break;
@@ -184,6 +225,9 @@ function buildDefinition(attributes: StoredAttributeMeta[]): Record<string, unkn
         if (opts['set']) {
           entry['set'] = opts['set'];
         }
+        if (opts['index']) {
+          entry['index'] = true;
+        }
         def[key] = entry;
         break;
       }
@@ -205,6 +249,9 @@ function buildDefinition(attributes: StoredAttributeMeta[]): Record<string, unkn
         if (opts['set']) {
           entry['set'] = opts['set'];
         }
+        if (opts['index']) {
+          entry['index'] = true;
+        }
         def[key] = entry;
         break;
       }
@@ -221,27 +268,35 @@ function buildDefinition(attributes: StoredAttributeMeta[]): Record<string, unkn
   return def;
 }
 
-export function serializeDate(
-  date: Date,
-  type: StringConstructor | NumberConstructor | DateConstructor
-): string | number | Date {
-  if (type === String) {
+export function serializeDate(date: Date, format: 'iso' | 'epoch' | 'ttl'): string | number {
+  if (format === 'iso') {
     return date.toISOString();
   }
-  if (type === Number) {
-    return date.getTime();
+  if (format === 'ttl') {
+    return Math.floor(date.getTime() / 1000);
   }
-  return date;
+  return date.getTime();
 }
 
 export interface ResolvedSchema {
+  /** The table name, as provided in the @DynamoTable decorator. */
   tableName: string;
+  /** The raw schema definition to be passed to Dynamoose. */
   definition: Record<string, unknown>;
+  /** Options to be passed to DynamooseSchema. */
   schemaOptions: {saveUnknown?: boolean | string[]};
+  /** Options to be passed to DynamooseTable. */
   tableOptions: Record<string, unknown>;
+  /** The hash key property name. */
   hashKey: string;
+  /** The range key property name, if defined. */
   rangeKey?: string;
+  /** The delete date property name, if defined. */
   deleteDateKey?: string;
+  /** GSI name for the @DeleteDateAttribute sparse index, if `index: true` was set. */
+  deleteDateIndexName?: string;
+  /** Property name of the @DateAttribute({ ttl: true }) field, if any. */
+  ttlKey?: string;
   /** Property → attribute name mapping for alias resolution. */
   aliasMap: Record<string, string>;
   /** Attribute name → property key (reverse). */
@@ -277,6 +332,13 @@ export function resolveTableSchema(entityClass: new () => unknown): ResolvedSche
 
   const {_hooks, ...tableOptions} = meta.options as Record<string, unknown>;
 
+  const deleteDateAttr = meta.attributes.find(a => a.kind === 'deleteDate');
+  const deleteDateIndexName =
+    deleteDateAttr?.options['index'] === true ? `${deleteDateAttr.attributeName}GlobalIndex` : undefined;
+
+  const ttlAttr = meta.attributes.find(a => a.kind === 'date' && a.timestampType === 'ttl');
+  const ttlKey = ttlAttr?.propertyKey;
+
   return {
     tableName: meta.tableName,
     definition,
@@ -287,6 +349,8 @@ export function resolveTableSchema(entityClass: new () => unknown): ResolvedSche
     hashKey: meta.hashKey,
     rangeKey: meta.rangeKey,
     deleteDateKey: meta.deleteDateKey,
+    deleteDateIndexName,
+    ttlKey,
     aliasMap,
     reverseAliasMap,
   };

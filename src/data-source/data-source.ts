@@ -6,20 +6,38 @@ import type {AnyItem} from '#/types';
 import {type DynamoDB, type DynamoDBClient} from '@aws-sdk/client-dynamodb';
 import dynamoose, {Instance} from 'dynamoose';
 
+/**
+ * Configuration options required to instantiate and initialize a {@link DataSource}.
+ */
 export interface DataSourceOptions {
   /**
-   * List of entity classes to register with this DataSource.
+   * List of decorated entity classes (decorated with `@DynamoTable`) to register with this DataSource.
    */
   entities: (new () => unknown)[];
+
   /**
-   * Provide an existing DynamoDBClient (e.g. from @aws-sdk/client-dynamodb).
-   * If omitted, Dynamoose uses its default AWS config.
+   * An optional pre-configured DynamoDB client instance (e.g. from `@aws-sdk/client-dynamodb`).
+   * If not specified, Dynamoose will attempt to instantiate a client using default AWS SDK environment variables.
    */
   documentClient?: DynamoDB | DynamoDBClient;
+
   /**
-   * Use DynamoDB Local.
+   * Enables connecting to a local DynamoDB instance (e.g., DynamoDB Local running in Docker or offline).
+   * Can be set to `true` to use the default `http://localhost:8000`, or an object specifying host/port configuration.
    */
-  local?: boolean | {host?: string; port?: number};
+  local?:
+    | boolean
+    | {
+        /**
+         * Hostname of the local DynamoDB server. Defaults to `'localhost'`.
+         */
+        host?: string;
+
+        /**
+         * Port of the local DynamoDB server. Defaults to `8000`.
+         */
+        port?: number;
+      };
 }
 
 /**
@@ -99,12 +117,7 @@ export class DataSource {
     if (this.#initialized) {
       return this;
     }
-    this.#configureClient();
-    for (const entityClass of this.#options.entities) {
-      this.#register(entityClass);
-    }
-    this.#manager = new EntityManager(this.#models);
-    this.#initialized = true;
+    this.#setup();
     return this;
   }
 
@@ -123,7 +136,7 @@ export class DataSource {
    */
   getRepository<T extends object>(entityClass: new () => T): Repository<T> {
     if (!this.#initialized) {
-      this.#lazyInit();
+      this.#setup();
     }
     return new Repository<T>(this.#getModel(entityClass));
   }
@@ -158,6 +171,19 @@ export class DataSource {
     await collector.flush();
 
     return result;
+  }
+
+  /**
+   * Configure client, register entities, wire manager. Idempotent entry point
+   * shared by initialize() and the lazy path in getRepository().
+   */
+  #setup(): void {
+    this.#configureClient();
+    for (const entityClass of this.#options.entities) {
+      this.#register(entityClass);
+    }
+    this.#manager = new EntityManager(this.#models);
+    this.#initialized = true;
   }
 
   /**
@@ -197,18 +223,6 @@ export class DataSource {
       entityClass as new () => unknown,
       new InternalModel(entityClass as new () => AnyItem, resolved, dModel)
     );
-  }
-
-  /**
-   * Lazy initialize the data source.
-   */
-  #lazyInit(): void {
-    this.#configureClient();
-    for (const Entity of this.#options.entities) {
-      this.#register(Entity);
-    }
-    this.#manager = new EntityManager(this.#models);
-    this.#initialized = true;
   }
 
   /**

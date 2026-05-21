@@ -1,21 +1,23 @@
 {
   "name": "@leandroluk/dynamoose-typed",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "A strongly-typed, decorator-driven ODM wrapper around Dynamoose",
   "main": "./dist/index.cjs",
-  "module": "./dist/index.js",
+  "module": "./dist/index.mjs",
   "types": "./dist/index.d.ts",
   "type": "module",
   "exports": {
     ".": {
-      "require": {
-        "types": "./dist/index.d.cts",
-        "default": "./dist/index.cjs"
-      },
-      "import": {
-        "types": "./dist/index.d.ts",
-        "default": "./dist/index.js"
-      }
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "typesVersions": {
+    "*": {
+      "*": [
+        "./dist/index.d.ts"
+      ]
     }
   },
   "scripts": {
@@ -61,6 +63,9 @@
   "packageManager": "pnpm@10.33.0",
   "devDependencies": {
     "@aws-sdk/client-dynamodb": "^3.0.0",
+    "@commitlint/cli": "21.0.1",
+    "@commitlint/config-conventional": "21.0.1",
+    "@commitlint/types": "21.0.1",
     "@eslint/js": "10.0.1",
     "@swc/core": "^1.15.26",
     "@vitest/coverage-v8": "4.1.4",
@@ -77,12 +82,8 @@
     "unplugin-swc": "^1.5.9",
     "vitest": "4.1.4"
   },
-  "dependencies": {
-    "@commitlint/cli": "20.5.0",
-    "@commitlint/config-conventional": "20.5.0",
-    "@commitlint/types": "20.5.0",
-    "dynamoose": "4.1.5",
-    "uuid": "13.0.0"
+  "peerDependencies": {
+    "dynamoose": ">=4.1.5"
   },
   "engines": {
     "node": ">=22"

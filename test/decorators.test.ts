@@ -1,12 +1,4 @@
-import {
-  Attribute,
-  DynamoTable,
-  getDocumentMeta,
-  getTableMeta,
-  NumberAttribute,
-  SetAttribute,
-  StringAttribute,
-} from '#/index';
+import {Attribute, DynamoTable, getDocumentMeta, getTableMeta, NumberAttribute, SetAttribute, StringAttribute} from '#';
 import {describe, expect, it} from 'vitest';
 import {AddressDoc, OrderTable, UserTable} from './fixtures';
 

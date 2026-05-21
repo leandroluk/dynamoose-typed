@@ -9,7 +9,7 @@ import {
   NumberAttribute,
   StringAttribute,
   UpdateDateAttribute,
-} from '#/index';
+} from '#';
 
 @DynamoDocument()
 export class AddressDoc {

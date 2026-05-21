@@ -118,9 +118,6 @@ await orderRepo.batchDelete([
 
 ## Transactions
 
-Reads execute immediately; writes are collected and flushed atomically when the callback resolves.
-If the callback throws, no writes are flushed.
-
 ```ts
 await dataSource.transaction(async (tx) => {
   // read executes immediately

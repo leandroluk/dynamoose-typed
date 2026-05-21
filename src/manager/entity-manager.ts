@@ -74,6 +74,18 @@ export class EntityManager {
   }
 
   /**
+   * Find entities by GSI hash key. Index name derived as `${attributeName}GlobalIndex`.
+   */
+  async findByIndex<T extends object>(
+    entityClass: new () => T,
+    attributeKey: keyof T & string,
+    hashValue: unknown,
+    options?: FindOptions
+  ): Promise<PaginatedResult<T>> {
+    return this.getRepository(entityClass).findByIndex(attributeKey, hashValue, options);
+  }
+
+  /**
    * Find entities by hash key.
    */
   async find<T extends object>(

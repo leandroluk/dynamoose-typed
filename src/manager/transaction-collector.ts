@@ -50,7 +50,7 @@ export class TransactionCollector {
         case 'update':
           return op.model.raw.transaction.update(op.key as object, op.changes);
         case 'delete':
-          return op.model.raw.transaction.delete(op.key as InputKey);
+          return op.model.raw.transaction.delete((op as unknown as {key: InputKey}).key);
       }
     });
 

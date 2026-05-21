@@ -3,34 +3,91 @@ import type {TableHooks} from './core.types';
 
 // ─── Schema Options ───────────────────────────────────────────────────────────
 
+/**
+ * Common configuration options at the schema level in Dynamoose.
+ */
 export interface SchemaOptions {
+  /**
+   * Defines whether properties not explicitly declared in the schema should be saved to the database.
+   * - `true`: Unknown fields are saved.
+   * - `false`: Unknown fields are ignored and stripped on save.
+   * - `string[]`: Array of property keys that are allowed to be saved even if not declared.
+   */
   saveUnknown?: boolean | string[];
 }
 
 // ─── @DynamoDocument options ──────────────────────────────────────────────────
 
+/**
+ * Configuration options specifically for `@DynamoDocument` classes.
+ * Inherits schema options like `saveUnknown`.
+ */
 export interface DocumentOptions extends SchemaOptions {}
 
 // ─── @DynamoTable options ─────────────────────────────────────────────────────
 
+/**
+ * Configuration options specifically for `@DynamoTable` classes.
+ * Includes hooks in addition to generic schema configurations.
+ *
+ * @template T The entity class type.
+ */
 export interface TableOptions<T = unknown> extends SchemaOptions {
+  /**
+   * Life-cycle hooks to execute before or after insertion, update, or deletion events.
+   */
   hooks?: TableHooks<T>;
 }
 
 // ─── Stored metadata ──────────────────────────────────────────────────────────
 
+/**
+ * Internal metadata collected for a registered `@DynamoTable` class.
+ */
 export interface TableMeta {
+  /**
+   * The physical name of the table in DynamoDB.
+   */
   tableName: string;
+
+  /**
+   * Configured table-level options.
+   */
   options: TableOptions;
-  /** Resolved attribute list (populated after all decorators run). */
+
+  /**
+   * Resolved list of attributes decorated on the entity.
+   * This is fully populated once all decorators have run.
+   */
   attributes: StoredAttributeMeta[];
+
+  /**
+   * The property name serving as the hash (partition) key.
+   */
   hashKey?: string;
+
+  /**
+   * The property name serving as the range (sort) key, if any.
+   */
   rangeKey?: string;
-  /** Property key of @DeleteDateAttribute, if any. */
+
+  /**
+   * The property name decorated with `@DeleteDateAttribute` (for soft deletes), if any.
+   */
   deleteDateKey?: string;
 }
 
+/**
+ * Internal metadata collected for a registered `@DynamoDocument` class.
+ */
 export interface DocumentMeta {
+  /**
+   * Configured document-level options.
+   */
   options: DocumentOptions;
+
+  /**
+   * Resolved list of attributes decorated on the nested document.
+   */
   attributes: StoredAttributeMeta[];
 }

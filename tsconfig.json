@@ -22,6 +22,9 @@
     "removeComments": true,
     "outDir": "dist",
     "paths": {
+      "#": [
+        "./src/index"
+      ],
       "#/*": [
         "./src/*"
       ]

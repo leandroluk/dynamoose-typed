@@ -22,12 +22,14 @@ export {Repository} from './repository/repository';
 export {EntityManager} from './manager/entity-manager';
 
 export type {
+  DateFormat,
+  FilterCondition,
   FindOptions,
   CountOptions,
   PaginatedResult,
+  SortKeyCondition,
   TableHooks,
   TimestampOptions,
-  TimestampStorageType,
   TransformOptions,
 } from './types/core.types';
 

@@ -22,7 +22,7 @@ import {
   UpdateDateAttribute,
 } from 'dynamoose-typed';
 import type { TransactionManager } from 'dynamoose-typed';
-import * as uuid from 'uuid';
+import crypto from 'node:crypto';
 
 @DynamoDocument({ saveUnknown: true })
 class AddressDocument {
@@ -67,7 +67,7 @@ class ContractDocument {
   },
 })
 class UserTable {
-  @StringAttribute({ hashKey: true, default: uuid.v7, trim: true, required: true })
+  @StringAttribute({ hashKey: true, default: crypto.randomUUID, trim: true, required: true })
   id!: string;
 
   @StringAttribute({ required: true, minLength: 3, maxLength: 100 })
@@ -92,15 +92,16 @@ class UserTable {
   contracts!: ContractDocument[];
 
   // stored as ISO-8601 string
-  @CreateDateAttribute('created_at', { type: String })
+  @CreateDateAttribute('created_at', { format: 'iso' })
   createdAt!: Date;
 
-  // stored as epoch milliseconds
-  @UpdateDateAttribute('updated_at', { type: Number })
+  // stored as epoch milliseconds (default)
+  @UpdateDateAttribute('updated_at')
   updatedAt!: Date;
 
-  // stored as native Date; set by delete(), cleared by restore()
-  @DeleteDateAttribute('deleted_at', { type: Date })
+  // set by delete(), cleared by restore()
+  // index: true enables sparse-GSI count() optimization
+  @DeleteDateAttribute('deleted_at', { index: true })
   deletedAt!: Date | null;
 }
 ```
@@ -140,8 +141,8 @@ const requiredUser = await dataSource.manager.findOneByOrFail(UserTable, { id: '
 
 ```ts
 // in-memory only — no persistence
-const userFromManager = dataSource.manager.create(UserTable, { id: uuid.v7(), name: 'Alice', age: 30 });
-const userFromRepo    = dataSource.getRepository(UserTable).create({ id: uuid.v7(), name: 'Bob', age: 25 });
+const userFromManager = dataSource.manager.create(UserTable, { id: crypto.randomUUID(), name: 'Alice', age: 30 });
+const userFromRepo    = dataSource.getRepository(UserTable).create({ id: crypto.randomUUID(), name: 'Bob', age: 25 });
 ```
 
 ### Save
@@ -165,6 +166,14 @@ const total        = await dataSource.manager.count(UserTable);
 const totalWithDel = await dataSource.getRepository(UserTable).count({ withDeleted: true });
 ```
 
+### GSI query
+
+```ts
+// query by GSI — requires index: true on the attribute
+const { items: byName } = await dataSource.manager.findByIndex(UserTable, 'name', 'Alice');
+const { items, lastKey } = await dataSource.getRepository(UserTable).findByIndex('isActive', true, { limit: 50 });
+```
+
 ### Scan & query
 
 ```ts
@@ -175,6 +184,14 @@ const { items: allUsers } = await dataSource.manager.scan(UserTable);
 const { items, count, lastKey } = await dataSource.manager.find(UserTable, 'alice-partition', {
   limit: 20,
   consistent: true,
+});
+
+// query by hash key + sort key condition
+const { items: range } = await dataSource.manager.find(UserTable, 'alice-partition', {
+  sortKey: { between: ['2024-01', '2024-12'] },
+});
+const { items: prefix } = await dataSource.manager.find(UserTable, 'alice-partition', {
+  sortKey: { beginsWith: '2024-' },
 });
 ```
 
@@ -207,8 +224,6 @@ await repo.batchDelete([{ id: '1' }, { id: '2' }]);
 ```
 
 ### Transactions
-
-Reads execute immediately; writes are collected and flushed atomically when the callback resolves.
 
 ```ts
 await dataSource.transaction(async (tx: TransactionManager) => {

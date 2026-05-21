@@ -1,4 +1,4 @@
-import {DateAttribute, DynamoTable, NumberAttribute, SetAttribute, StringAttribute} from '#/index';
+import {DateAttribute, DynamoTable, NumberAttribute, SetAttribute, StringAttribute} from '#';
 import {resolveTableSchema, serializeDate} from '#/schema';
 import {describe, expect, it} from 'vitest';
 import {OrderTable, UserTable} from './fixtures';
@@ -66,17 +66,17 @@ describe('resolveTableSchema', () => {
   describe('serializeDate', () => {
     it('serializes to ISO string', () => {
       const now = new Date();
-      expect(serializeDate(now, String)).toBe(now.toISOString());
+      expect(serializeDate(now, 'iso')).toBe(now.toISOString());
     });
 
-    it('serializes to timestamp number', () => {
+    it('serializes to epoch milliseconds', () => {
       const now = new Date();
-      expect(serializeDate(now, Number)).toBe(now.getTime());
+      expect(serializeDate(now, 'epoch')).toBe(now.getTime());
     });
 
-    it('returns Date object as is', () => {
+    it('serializes to TTL epoch seconds', () => {
       const now = new Date();
-      expect(serializeDate(now, Date)).toBe(now);
+      expect(serializeDate(now, 'ttl')).toBe(Math.floor(now.getTime() / 1000));
     });
   });
 
@@ -85,7 +85,7 @@ describe('resolveTableSchema', () => {
       @DynamoTable('date-defaults')
       class DateDefaultsTable {
         @StringAttribute({hashKey: true}) id!: string;
-        @DateAttribute({type: Number}) date!: Date;
+        @DateAttribute({format: 'epoch'}) date!: Date;
       }
       const schema = resolveTableSchema(DateDefaultsTable);
       const dateField = schema.definition['date'] as {type: never};
