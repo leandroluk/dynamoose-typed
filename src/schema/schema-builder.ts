@@ -130,7 +130,7 @@ function buildDefinition(attributes: StoredAttributeMeta[]): Record<string, unkn
 
       case 'date': {
         const isTtl = attr.timestampType === 'ttl';
-        const fmt = attr.timestampType ?? 'epoch';
+        const fmt = attr.timestampType;
         const entry: Record<string, unknown> = {
           type: fmtToStorageType(fmt),
           required: opts['required'],
@@ -157,7 +157,7 @@ function buildDefinition(attributes: StoredAttributeMeta[]): Record<string, unkn
       case 'createDate':
       case 'updateDate':
       case 'deleteDate': {
-        const fmt = (attr.timestampType ?? 'epoch') as 'iso' | 'epoch';
+        const fmt = attr.timestampType as 'iso' | 'epoch';
         const entry: Record<string, unknown> = {
           type: fmtToStorageType(fmt),
           required: attr.kind === 'deleteDate' ? false : opts['required'],
@@ -338,6 +338,9 @@ export function resolveTableSchema(entityClass: new () => unknown): ResolvedSche
 
   const ttlAttr = meta.attributes.find(a => a.kind === 'date' && a.timestampType === 'ttl');
   const ttlKey = ttlAttr?.propertyKey;
+  if (ttlAttr) {
+    tableOptions['expires'] = {attribute: ttlAttr.attributeName};
+  }
 
   return {
     tableName: meta.tableName,

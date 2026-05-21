@@ -483,8 +483,7 @@ describe('Repository Integration (Real Logic)', () => {
 
   describe('filter expressions', () => {
     const makeFilterMock = () => {
-      const qc: Record<string, any> = {};
-      for (const m of [
+      const qc: Record<string, any> = [
         'eq',
         'ne',
         'lt',
@@ -500,9 +499,13 @@ describe('Repository Integration (Real Logic)', () => {
         'consistent',
         'startAt',
         'using',
-      ]) {
-        qc[m] = vi.fn().mockReturnValue(qc);
-      }
+      ].reduce(
+        (acc, m) => {
+          acc[m] = vi.fn().mockReturnValue(acc);
+          return acc;
+        },
+        {} as Record<string, any>
+      );
       qc.exec = vi.fn().mockResolvedValue(Object.assign([], {lastKey: undefined}));
       qc.filter = vi.fn().mockReturnValue(qc);
       qc.not = vi.fn().mockReturnValue({eq: vi.fn(() => qc), exists: vi.fn(() => qc)});
@@ -510,8 +513,7 @@ describe('Repository Integration (Real Logic)', () => {
     };
 
     const makeScanMock = () => {
-      const sc: Record<string, any> = {};
-      for (const m of [
+      const sc: Record<string, any> = [
         'eq',
         'ne',
         'lt',
@@ -527,9 +529,13 @@ describe('Repository Integration (Real Logic)', () => {
         'startAt',
         'count',
         'using',
-      ]) {
-        sc[m] = vi.fn().mockReturnValue(sc);
-      }
+      ].reduce(
+        (acc, m) => {
+          acc[m] = vi.fn().mockReturnValue(acc);
+          return acc;
+        },
+        {} as Record<string, any>
+      );
       sc.exec = vi.fn().mockResolvedValue(Object.assign([], {lastKey: undefined}));
       sc.filter = vi.fn().mockReturnValue(sc);
       sc.not = vi.fn().mockReturnValue({eq: vi.fn(() => sc), exists: vi.fn(() => sc)});

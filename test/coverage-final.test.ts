@@ -367,6 +367,52 @@ describe('EntityManager full surface', () => {
     const batchResults = await entityManager.batchGet(UserTable, [{id: '1'}]);
     expect(batchResults[0]).toBeDefined();
   });
+
+  it('findByIndex() delegates to repository.findByIndex', async () => {
+    const queryChain: Record<string, any> = {};
+    for (const m of ['eq', 'using', 'limit', 'consistent', 'startAt']) {
+      queryChain[m] = vi.fn().mockReturnValue(queryChain);
+    }
+    queryChain.exec = vi
+      .fn()
+      .mockResolvedValue(Object.assign([makeItem({id: '1', is_active: true})], {lastKey: undefined}));
+    queryChain.filter = vi.fn().mockReturnValue(queryChain);
+    const queryMock = vi.fn().mockReturnValue(queryChain);
+    vi.spyOn(dynamoose, 'model').mockReturnValue({query: queryMock} as any);
+    const dataSource = new DataSource({entities: [UserTable]});
+    await dataSource.initialize();
+    const entityManager = dataSource.manager;
+    const result = await entityManager.findByIndex(UserTable, 'isActive', true);
+    expect(result.items).toHaveLength(1);
+  });
+
+  it('findAll() delegates to repository.findAll', async () => {
+    const queryChain: Record<string, any> = {
+      eq: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockReturnThis(),
+      consistent: vi.fn().mockReturnThis(),
+      startAt: vi.fn().mockReturnThis(),
+      exec: vi.fn().mockResolvedValue(Object.assign([], {lastKey: undefined})),
+    };
+    vi.spyOn(dynamoose, 'model').mockReturnValue({query: vi.fn().mockReturnValue(queryChain)} as any);
+    const ds = new DataSource({entities: [UserTable]});
+    await ds.initialize();
+    const result = await ds.manager.findAll(UserTable, 'u1');
+    expect(result).toHaveLength(0);
+  });
+
+  it('scanAll() delegates to repository.scanAll', async () => {
+    const scanChain: Record<string, any> = {
+      limit: vi.fn().mockReturnThis(),
+      startAt: vi.fn().mockReturnThis(),
+      exec: vi.fn().mockResolvedValue(Object.assign([], {lastKey: undefined})),
+    };
+    vi.spyOn(dynamoose, 'model').mockReturnValue({scan: vi.fn().mockReturnValue(scanChain)} as any);
+    const ds = new DataSource({entities: [UserTable]});
+    await ds.initialize();
+    const result = await ds.manager.scanAll(UserTable);
+    expect(result).toHaveLength(0);
+  });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

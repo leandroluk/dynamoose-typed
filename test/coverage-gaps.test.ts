@@ -563,6 +563,236 @@ describe('Repository real paths (mocked dynamoose)', () => {
     expect(findResult.lastKey).toEqual(startAtKey);
   });
 
+  it('findByIndex() with startAt passes it through', async () => {
+    const startAtKey = {id: 'cursor'};
+    const queryChain = {
+      eq: vi.fn().mockReturnThis(),
+      using: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockReturnThis(),
+      consistent: vi.fn().mockReturnThis(),
+      startAt: vi.fn().mockReturnThis(),
+      exec: vi.fn().mockResolvedValue(Object.assign([], {lastKey: startAtKey})),
+    };
+    (queryChain as any)['filter'] = vi.fn().mockReturnValue(queryChain);
+    currentMockDynamooseModel.query.mockReturnValue(queryChain);
+    const userRepository = dataSource.getRepository(UserTable);
+    const result = await userRepository.findByIndex('isActive', true, {startAt: startAtKey});
+    expect(queryChain.startAt).toHaveBeenCalledWith(startAtKey);
+    expect(result.lastKey).toEqual(startAtKey);
+  });
+
+  it('findByIndex() with consistent:true passes it through', async () => {
+    const queryChain = {
+      eq: vi.fn().mockReturnThis(),
+      using: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockReturnThis(),
+      consistent: vi.fn().mockReturnThis(),
+      startAt: vi.fn().mockReturnThis(),
+      exec: vi.fn().mockResolvedValue(Object.assign([], {lastKey: undefined})),
+    };
+    (queryChain as any)['filter'] = vi.fn().mockReturnValue(queryChain);
+    currentMockDynamooseModel.query.mockReturnValue(queryChain);
+    const userRepository = dataSource.getRepository(UserTable);
+    await userRepository.findByIndex('isActive', true, {consistent: true});
+    expect(queryChain.consistent).toHaveBeenCalled();
+  });
+
+  it('findByIndex() with non-aliased key uses property name directly', async () => {
+    const queryChain = {
+      eq: vi.fn().mockReturnThis(),
+      using: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockReturnThis(),
+      consistent: vi.fn().mockReturnThis(),
+      startAt: vi.fn().mockReturnThis(),
+      exec: vi.fn().mockResolvedValue(Object.assign([], {lastKey: undefined})),
+    };
+    (queryChain as any)['filter'] = vi.fn().mockReturnValue(queryChain);
+    currentMockDynamooseModel.query.mockReturnValue(queryChain);
+    const userRepository = dataSource.getRepository(UserTable);
+    await userRepository.findByIndex('name', 'Alice');
+    expect(currentMockDynamooseModel.query).toHaveBeenCalledWith('name');
+  });
+
+  it('find() with sortKey:gte passes it through', async () => {
+    const whereChain = {
+      eq: vi.fn().mockReturnThis(),
+      lt: vi.fn().mockReturnThis(),
+      lte: vi.fn().mockReturnThis(),
+      gt: vi.fn().mockReturnThis(),
+      gte: vi.fn().mockReturnThis(),
+      between: vi.fn().mockReturnThis(),
+      beginsWith: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockReturnThis(),
+      consistent: vi.fn().mockReturnThis(),
+      startAt: vi.fn().mockReturnThis(),
+      exec: vi.fn().mockResolvedValue(Object.assign([], {lastKey: undefined})),
+    };
+    currentMockDynamooseModel.query.mockReturnValue({
+      eq: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockReturnThis(),
+      consistent: vi.fn().mockReturnThis(),
+      startAt: vi.fn().mockReturnThis(),
+      where: vi.fn().mockReturnValue(whereChain),
+      exec: vi.fn().mockResolvedValue(Object.assign([], {lastKey: undefined})),
+    });
+    const orderRepository = dataSource.getRepository(OrderTable);
+    await orderRepository.find('u1', {sortKey: {gte: 'o0'}});
+    expect(whereChain.gte).toHaveBeenCalledWith('o0');
+  });
+
+  it('filter with in operator resolves correctly', async () => {
+    const queryChain = {
+      eq: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockReturnThis(),
+      consistent: vi.fn().mockReturnThis(),
+      startAt: vi.fn().mockReturnThis(),
+      exec: vi.fn().mockResolvedValue(Object.assign([], {lastKey: undefined})),
+    };
+    (queryChain as any)['filter'] = vi.fn().mockReturnValue({
+      in: vi.fn().mockReturnValue(queryChain),
+    });
+    currentMockDynamooseModel.query.mockReturnValue(queryChain);
+    const userRepository = dataSource.getRepository(UserTable);
+    await userRepository.find('u1', {filter: {name: {in: ['Alice', 'Bob']}}});
+    expect((queryChain as any).filter).toHaveBeenCalledWith('name');
+  });
+
+  it('filter with non-aliased key uses propKey fallback', async () => {
+    const queryChain: Record<string, any> = {
+      eq: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockReturnThis(),
+      consistent: vi.fn().mockReturnThis(),
+      startAt: vi.fn().mockReturnThis(),
+      exec: vi.fn().mockResolvedValue(Object.assign([], {lastKey: undefined})),
+    };
+    queryChain['filter'] = vi.fn().mockReturnValue(queryChain);
+    currentMockDynamooseModel.query.mockReturnValue(queryChain);
+    const userRepository = dataSource.getRepository(UserTable);
+    await userRepository.find('u1', {filter: {name: {eq: 'Alice'}}});
+    expect(queryChain['filter']).toHaveBeenCalledWith('name');
+  });
+
+  it('filter with key absent from aliasMap uses propKey as fallback', async () => {
+    const queryChain: Record<string, any> = {
+      eq: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockReturnThis(),
+      consistent: vi.fn().mockReturnThis(),
+      startAt: vi.fn().mockReturnThis(),
+      exec: vi.fn().mockResolvedValue(Object.assign([], {lastKey: undefined})),
+    };
+    queryChain['filter'] = vi.fn().mockReturnValue(queryChain);
+    currentMockDynamooseModel.query.mockReturnValue(queryChain);
+    const userRepository = dataSource.getRepository(UserTable);
+    await userRepository.find('u1', {filter: {ghostField: {eq: 'x'}} as any});
+    expect(queryChain['filter']).toHaveBeenCalledWith('ghostField');
+  });
+
+  it('filter with empty condition object is a no-op', async () => {
+    const queryChain: Record<string, any> = {
+      eq: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockReturnThis(),
+      consistent: vi.fn().mockReturnThis(),
+      startAt: vi.fn().mockReturnThis(),
+      exec: vi.fn().mockResolvedValue(Object.assign([], {lastKey: undefined})),
+    };
+    queryChain['filter'] = vi.fn().mockReturnValue(queryChain);
+    currentMockDynamooseModel.query.mockReturnValue(queryChain);
+    const userRepository = dataSource.getRepository(UserTable);
+    await userRepository.find('u1', {filter: {name: {} as any}});
+    expect(queryChain['filter']).toHaveBeenCalledWith('name');
+  });
+
+  it('find() with sortKey:{} falls through all sort key conditions', async () => {
+    const whereChain: Record<string, any> = {
+      eq: vi.fn().mockReturnThis(),
+      lt: vi.fn().mockReturnThis(),
+      lte: vi.fn().mockReturnThis(),
+      gt: vi.fn().mockReturnThis(),
+      gte: vi.fn().mockReturnThis(),
+      between: vi.fn().mockReturnThis(),
+      beginsWith: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockReturnThis(),
+      consistent: vi.fn().mockReturnThis(),
+      startAt: vi.fn().mockReturnThis(),
+      exec: vi.fn().mockResolvedValue(Object.assign([], {lastKey: undefined})),
+    };
+    currentMockDynamooseModel.query.mockReturnValue({
+      eq: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockReturnThis(),
+      consistent: vi.fn().mockReturnThis(),
+      startAt: vi.fn().mockReturnThis(),
+      where: vi.fn().mockReturnValue(whereChain),
+      exec: vi.fn().mockResolvedValue(Object.assign([], {lastKey: undefined})),
+    });
+    const orderRepository = dataSource.getRepository(OrderTable);
+    await orderRepository.find('u1', {sortKey: {} as any});
+    expect(whereChain.eq).not.toHaveBeenCalled();
+    expect(whereChain.gte).not.toHaveBeenCalled();
+  });
+
+  it('findByIndex() with non-schema key falls back to propKey', async () => {
+    const queryChain: Record<string, any> = {
+      eq: vi.fn().mockReturnThis(),
+      using: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockReturnThis(),
+      consistent: vi.fn().mockReturnThis(),
+      startAt: vi.fn().mockReturnThis(),
+      exec: vi.fn().mockResolvedValue(Object.assign([], {lastKey: undefined})),
+    };
+    queryChain['filter'] = vi.fn().mockReturnValue(queryChain);
+    currentMockDynamooseModel.query.mockReturnValue(queryChain);
+    const userRepository = dataSource.getRepository(UserTable);
+    await (userRepository as any).findByIndex('ghostAttr', 'x');
+    expect(currentMockDynamooseModel.query).toHaveBeenCalledWith('ghostAttr');
+  });
+
+  it('findAll() auto-paginates find() until lastKey is exhausted', async () => {
+    const cursor = {id: 'cursor'};
+    const makeChain = (items: Record<string, unknown>[], lastKey: unknown) => ({
+      eq: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockReturnThis(),
+      consistent: vi.fn().mockReturnThis(),
+      startAt: vi.fn().mockReturnThis(),
+      exec: vi.fn().mockResolvedValue(Object.assign(items, {lastKey})),
+    });
+    currentMockDynamooseModel.query
+      .mockReturnValueOnce(makeChain([{id: '1', name: 'Alice'}], cursor))
+      .mockReturnValue(makeChain([], undefined));
+    const userRepository = dataSource.getRepository(UserTable);
+    const result = await userRepository.findAll('u1');
+    expect(currentMockDynamooseModel.query).toHaveBeenCalledTimes(2);
+    expect(result).toHaveLength(1);
+  });
+
+  it('findAll() single page (no lastKey) returns items directly', async () => {
+    currentMockDynamooseModel.query.mockReturnValue({
+      eq: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockReturnThis(),
+      consistent: vi.fn().mockReturnThis(),
+      startAt: vi.fn().mockReturnThis(),
+      exec: vi.fn().mockResolvedValue(Object.assign([], {lastKey: undefined})),
+    });
+    const userRepository = dataSource.getRepository(UserTable);
+    const result = await userRepository.findAll('u1');
+    expect(result).toHaveLength(0);
+  });
+
+  it('scanAll() auto-paginates scan() until lastKey is exhausted', async () => {
+    const cursor = {id: 'cursor'};
+    const makeChain = (items: Record<string, unknown>[], lastKey: unknown) => ({
+      limit: vi.fn().mockReturnThis(),
+      startAt: vi.fn().mockReturnThis(),
+      exec: vi.fn().mockResolvedValue(Object.assign(items, {lastKey})),
+    });
+    currentMockDynamooseModel.scan
+      .mockReturnValueOnce(makeChain([{id: '2', name: 'Bob'}], cursor))
+      .mockReturnValue(makeChain([], undefined));
+    const userRepository = dataSource.getRepository(UserTable);
+    const result = await userRepository.scanAll();
+    expect(currentMockDynamooseModel.scan).toHaveBeenCalledTimes(2);
+    expect(result).toHaveLength(1);
+  });
+
   it('scan() with startAt passes it through', async () => {
     const startAtKey = {id: 'cursor'};
     const scanExecMock = vi.fn().mockResolvedValue(Object.assign([], {lastKey: startAtKey}));
@@ -809,6 +1039,48 @@ describe('TransactionManager', () => {
     const transactionManager = new TransactionManager(registry, new TransactionCollector());
     const scanResult = await transactionManager.scan(UserTable);
     expect(scanResult.items).toEqual([]);
+  });
+
+  it('findAll() auto-paginates through all pages', async () => {
+    const {registry, userTableMockDynamooseModel} = makeTransactionManagerRegistry();
+    userTableMockDynamooseModel.query
+      .mockReturnValueOnce({
+        eq: vi.fn().mockReturnThis(),
+        limit: vi.fn().mockReturnThis(),
+        consistent: vi.fn().mockReturnThis(),
+        startAt: vi.fn().mockReturnThis(),
+        exec: vi.fn().mockResolvedValue(Object.assign([{id: '1', name: 'Alice'}], {lastKey: {id: '1'}})),
+      })
+      .mockReturnValue({
+        eq: vi.fn().mockReturnThis(),
+        limit: vi.fn().mockReturnThis(),
+        consistent: vi.fn().mockReturnThis(),
+        startAt: vi.fn().mockReturnThis(),
+        exec: vi.fn().mockResolvedValue(Object.assign([], {lastKey: undefined})),
+      });
+    const transactionManager = new TransactionManager(registry, new TransactionCollector());
+    const result = await transactionManager.findAll(UserTable, 'u1');
+    expect(userTableMockDynamooseModel.query).toHaveBeenCalledTimes(2);
+    expect(result).toHaveLength(1);
+  });
+
+  it('scanAll() auto-paginates through all pages', async () => {
+    const {registry, userTableMockDynamooseModel} = makeTransactionManagerRegistry();
+    userTableMockDynamooseModel.scan
+      .mockReturnValueOnce({
+        limit: vi.fn().mockReturnThis(),
+        startAt: vi.fn().mockReturnThis(),
+        exec: vi.fn().mockResolvedValue(Object.assign([{id: '2', name: 'Bob'}], {lastKey: {id: '2'}})),
+      })
+      .mockReturnValue({
+        limit: vi.fn().mockReturnThis(),
+        startAt: vi.fn().mockReturnThis(),
+        exec: vi.fn().mockResolvedValue(Object.assign([], {lastKey: undefined})),
+      });
+    const transactionManager = new TransactionManager(registry, new TransactionCollector());
+    const result = await transactionManager.scanAll(UserTable);
+    expect(userTableMockDynamooseModel.scan).toHaveBeenCalledTimes(2);
+    expect(result).toHaveLength(1);
   });
 
   it('count() executes immediately', async () => {

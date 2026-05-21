@@ -97,10 +97,28 @@ export class EntityManager {
   }
 
   /**
+   * Auto-paginate find() until all pages are exhausted.
+   */
+  async findAll<T extends object>(
+    entityClass: new () => T,
+    hashValue: unknown,
+    options?: Omit<FindOptions, 'startAt'>
+  ): Promise<T[]> {
+    return this.getRepository(entityClass).findAll(hashValue, options);
+  }
+
+  /**
    * Scan entities.
    */
   async scan<T extends object>(entityClass: new () => T, options?: FindOptions): Promise<PaginatedResult<T>> {
     return this.getRepository(entityClass).scan(options);
+  }
+
+  /**
+   * Auto-paginate scan() until all pages are exhausted.
+   */
+  async scanAll<T extends object>(entityClass: new () => T, options?: Omit<FindOptions, 'startAt'>): Promise<T[]> {
+    return this.getRepository(entityClass).scanAll(options);
   }
 
   /**

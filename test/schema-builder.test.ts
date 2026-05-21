@@ -1,4 +1,15 @@
-import {DateAttribute, DynamoTable, NumberAttribute, SetAttribute, StringAttribute} from '#';
+import {
+  ArrayAttribute,
+  BooleanAttribute,
+  CreateDateAttribute,
+  DateAttribute,
+  DynamoDocument,
+  DynamoTable,
+  NestedAttribute,
+  NumberAttribute,
+  SetAttribute,
+  StringAttribute,
+} from '#';
 import {resolveTableSchema, serializeDate} from '#/schema';
 import {describe, expect, it} from 'vitest';
 import {OrderTable, UserTable} from './fixtures';
@@ -107,6 +118,187 @@ describe('resolveTableSchema', () => {
           schema: [{type: String}],
         })
       );
+    });
+
+    it('NumberAttribute with set transform includes set in entry', () => {
+      const setFn = (v: number) => v * 2;
+      @DynamoTable('num-set')
+      class NumSetTable {
+        @StringAttribute({hashKey: true}) id!: string;
+        @NumberAttribute({set: setFn}) val!: number;
+      }
+      const schema = resolveTableSchema(NumSetTable);
+      expect((schema.definition['val'] as Record<string, unknown>)['set']).toBe(setFn);
+    });
+
+    it('ArrayAttribute with set transform includes set in entry', () => {
+      const setFn = (v: unknown[]) => v;
+      @DynamoTable('arr-set')
+      class ArrSetTable {
+        @StringAttribute({hashKey: true}) id!: string;
+        @ArrayAttribute(() => String, {set: setFn}) tags!: string[];
+      }
+      const schema = resolveTableSchema(ArrSetTable);
+      expect((schema.definition['tags'] as Record<string, unknown>)['set']).toBe(setFn);
+    });
+
+    it('SetAttribute with set transform includes set in entry', () => {
+      const setFn = (v: Set<unknown>) => v;
+      @DynamoTable('set-set')
+      class SetSetTable {
+        @StringAttribute({hashKey: true}) id!: string;
+        @SetAttribute(() => String, {set: setFn}) roles!: Set<string>;
+      }
+      const schema = resolveTableSchema(SetSetTable);
+      expect((schema.definition['roles'] as Record<string, unknown>)['set']).toBe(setFn);
+    });
+  });
+
+  describe('index option', () => {
+    it('StringAttribute with index:true includes index in entry', () => {
+      @DynamoTable('str-idx')
+      class StrIdxTable {
+        @StringAttribute({hashKey: true}) id!: string;
+        @StringAttribute({index: true}) name!: string;
+      }
+      const schema = resolveTableSchema(StrIdxTable);
+      expect((schema.definition['name'] as Record<string, unknown>)['index']).toBe(true);
+    });
+
+    it('NumberAttribute with index:true includes index in entry', () => {
+      @DynamoTable('num-idx')
+      class NumIdxTable {
+        @StringAttribute({hashKey: true}) id!: string;
+        @NumberAttribute({index: true}) score!: number;
+      }
+      const schema = resolveTableSchema(NumIdxTable);
+      expect((schema.definition['score'] as Record<string, unknown>)['index']).toBe(true);
+    });
+
+    it('BooleanAttribute with index:true includes index in entry', () => {
+      @DynamoTable('bool-idx')
+      class BoolIdxTable {
+        @StringAttribute({hashKey: true}) id!: string;
+        @BooleanAttribute({index: true}) active!: boolean;
+      }
+      const schema = resolveTableSchema(BoolIdxTable);
+      expect((schema.definition['active'] as Record<string, unknown>)['index']).toBe(true);
+    });
+
+    it('DateAttribute with index:true includes index in entry', () => {
+      @DynamoTable('date-idx')
+      class DateIdxTable {
+        @StringAttribute({hashKey: true}) id!: string;
+        @DateAttribute({index: true}) ts!: Date;
+      }
+      const schema = resolveTableSchema(DateIdxTable);
+      expect((schema.definition['ts'] as Record<string, unknown>)['index']).toBe(true);
+    });
+
+    it('CreateDateAttribute with get transform includes get in entry', () => {
+      const getFn = (v: Date) => v;
+      @DynamoTable('cdate-get')
+      class CdateGetTable {
+        @StringAttribute({hashKey: true}) id!: string;
+        @CreateDateAttribute({get: getFn}) createdAt!: Date;
+      }
+      const schema = resolveTableSchema(CdateGetTable);
+      expect((schema.definition['createdAt'] as Record<string, unknown>)['get']).toBe(getFn);
+    });
+
+    it('CreateDateAttribute with set transform includes set in entry', () => {
+      const setFn = (v: Date) => v;
+      @DynamoTable('cdate-set')
+      class CdateSetTable {
+        @StringAttribute({hashKey: true}) id!: string;
+        @CreateDateAttribute({set: setFn}) createdAt!: Date;
+      }
+      const schema = resolveTableSchema(CdateSetTable);
+      expect((schema.definition['createdAt'] as Record<string, unknown>)['set']).toBe(setFn);
+    });
+
+    it('NestedAttribute with index:true includes index in entry', () => {
+      @DynamoDocument()
+      class AddrDoc {
+        @StringAttribute() street!: string;
+      }
+      @DynamoTable('nested-idx')
+      class NestedIdxTable {
+        @StringAttribute({hashKey: true}) id!: string;
+        @NestedAttribute(() => AddrDoc, {index: true}) addr!: AddrDoc;
+      }
+      const schema = resolveTableSchema(NestedIdxTable);
+      expect((schema.definition['addr'] as Record<string, unknown>)['index']).toBe(true);
+    });
+
+    it('ArrayAttribute with index:true includes index in entry', () => {
+      @DynamoTable('arr-idx')
+      class ArrIdxTable {
+        @StringAttribute({hashKey: true}) id!: string;
+        @ArrayAttribute(() => String, {index: true}) tags!: string[];
+      }
+      const schema = resolveTableSchema(ArrIdxTable);
+      expect((schema.definition['tags'] as Record<string, unknown>)['index']).toBe(true);
+    });
+
+    it('SetAttribute with index:true includes index in entry', () => {
+      @DynamoTable('set-idx')
+      class SetIdxTable {
+        @StringAttribute({hashKey: true}) id!: string;
+        @SetAttribute(() => String, {index: true}) roles!: Set<string>;
+      }
+      const schema = resolveTableSchema(SetIdxTable);
+      expect((schema.definition['roles'] as Record<string, unknown>)['index']).toBe(true);
+    });
+  });
+
+  describe('TTL attribute', () => {
+    it('sets expires.attribute in tableOptions when @DateAttribute({ ttl: true }) is present', () => {
+      @DynamoTable('ttl-table')
+      class TtlTable {
+        @StringAttribute({hashKey: true}) id!: string;
+        @DateAttribute({ttl: true}) expiresAt!: Date;
+      }
+      const schema = resolveTableSchema(TtlTable);
+      expect(schema.tableOptions['expires']).toEqual({attribute: 'expiresAt'});
+      expect(schema.ttlKey).toBe('expiresAt');
+    });
+
+    it('TTL attribute stores default get/set functions that convert seconds↔Date', () => {
+      @DynamoTable('ttl-fn-table')
+      class TtlFnTable {
+        @StringAttribute({hashKey: true}) id!: string;
+        @DateAttribute({ttl: true}) expiresAt!: Date;
+      }
+      const schema = resolveTableSchema(TtlFnTable);
+      const field = schema.definition['expiresAt'] as {get: (n: number) => Date; set: (d: Date) => number};
+      const ts = 1000;
+      expect(field.get(ts)).toEqual(new Date(ts * 1000));
+      expect(field.set(new Date(ts * 1000))).toBe(ts);
+    });
+
+    it('TTL attribute with custom get/set uses provided functions', () => {
+      const getFn = (n: number) => new Date(n * 1000);
+      const setFn = (d: Date) => Math.floor(d.getTime() / 1000);
+      @DynamoTable('ttl-custom-table')
+      class TtlCustomTable {
+        @StringAttribute({hashKey: true}) id!: string;
+        @DateAttribute({ttl: true, get: getFn as never, set: setFn as never}) expiresAt!: Date;
+      }
+      const schema = resolveTableSchema(TtlCustomTable);
+      const field = schema.definition['expiresAt'] as {get: unknown; set: unknown};
+      expect(field.get).toBe(getFn);
+      expect(field.set).toBe(setFn);
+    });
+
+    it('sets expires with alias when ttl attribute has an alias', () => {
+      @DynamoTable('ttl-alias-table')
+      class TtlAliasTable {
+        @StringAttribute({hashKey: true}) id!: string;
+        @DateAttribute('expires_at', {ttl: true}) expiresAt!: Date;
+      }
+      const schema = resolveTableSchema(TtlAliasTable);
+      expect(schema.tableOptions['expires']).toEqual({attribute: 'expires_at'});
     });
   });
 

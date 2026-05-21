@@ -1,5 +1,6 @@
 import type {InternalModel} from '#/model/internal-model';
 import type {AnyRecord, CountOptions, FilterCondition, FindOptions, ItemKey, PaginatedResult} from '#/types';
+import {type InputKey} from 'dynamoose/dist/General';
 
 function applyFilters<Q>(q: Q, filter: Record<string, FilterCondition>, aliasMap: Record<string, string>): Q {
   for (const [propKey, cond] of Object.entries(filter)) {
@@ -34,7 +35,6 @@ function applyFilters<Q>(q: Q, filter: Record<string, FilterCondition>, aliasMap
   }
   return q;
 }
-import {type InputKey} from 'dynamoose/dist/General';
 
 /**
  * Typed repository for a single entity.
@@ -207,6 +207,34 @@ export class Repository<T extends object> {
     }
 
     return {items, count: items.length, lastKey: result.lastKey as AnyRecord | undefined};
+  }
+
+  /**
+   * Auto-paginate find() until all pages are exhausted. Returns all matching items.
+   */
+  async findAll(hashValue: unknown, options: Omit<FindOptions, 'startAt'> = {}): Promise<T[]> {
+    const items: T[] = [];
+    let lastKey: AnyRecord | undefined;
+    do {
+      const page = await this.find(hashValue, {...options, startAt: lastKey});
+      items.push(...page.items);
+      lastKey = page.lastKey;
+    } while (lastKey);
+    return items;
+  }
+
+  /**
+   * Auto-paginate scan() until all pages are exhausted. Returns all matching items.
+   */
+  async scanAll(options: Omit<FindOptions, 'startAt'> = {}): Promise<T[]> {
+    const items: T[] = [];
+    let lastKey: AnyRecord | undefined;
+    do {
+      const page = await this.scan({...options, startAt: lastKey});
+      items.push(...page.items);
+      lastKey = page.lastKey;
+    } while (lastKey);
+    return items;
   }
 
   /**

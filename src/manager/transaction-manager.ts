@@ -55,8 +55,20 @@ export class TransactionManager {
     return new Repository<T>(this.#getModel(entityClass)).find(hashValue, options);
   }
 
+  async findAll<T extends object>(
+    entityClass: new () => T,
+    hashValue: unknown,
+    options?: Omit<FindOptions, 'startAt'>
+  ): Promise<T[]> {
+    return new Repository<T>(this.#getModel(entityClass)).findAll(hashValue, options);
+  }
+
   async scan<T extends object>(entityClass: new () => T, options?: FindOptions): Promise<PaginatedResult<T>> {
     return new Repository<T>(this.#getModel(entityClass)).scan(options);
+  }
+
+  async scanAll<T extends object>(entityClass: new () => T, options?: Omit<FindOptions, 'startAt'>): Promise<T[]> {
+    return new Repository<T>(this.#getModel(entityClass)).scanAll(options);
   }
 
   async count<T extends object>(entityClass: new () => T, options?: CountOptions): Promise<number> {

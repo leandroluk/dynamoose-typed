@@ -22,7 +22,7 @@ function injectTimestampsDeep(
 ): void {
   for (const attr of attrs) {
     if ((kinds as string[]).includes(attr.kind)) {
-      const fmt = (attr.timestampType ?? 'epoch') as 'iso' | 'epoch';
+      const fmt = attr.timestampType as 'iso' | 'epoch';
       (item as Record<string, unknown>)[attr.attributeName] = value === null ? null : serializeDate(value, fmt);
       continue;
     }
