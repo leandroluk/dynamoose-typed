@@ -30,10 +30,13 @@ export type {
   FindOptions,
   CountOptions,
   PaginatedResult,
+  Projected,
+  SelectMap,
   SortKeyCondition,
   TableHooks,
   TimestampOptions,
   TransformOptions,
+  WriteOptions,
 } from './types/core.types';
 
 export type {TableOptions, DocumentOptions} from './types/meta.types';

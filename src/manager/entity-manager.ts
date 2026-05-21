@@ -1,6 +1,6 @@
 import type {InternalModel} from '#/model/internal-model';
 import {Repository} from '#/repository/repository';
-import type {CountOptions, FindOptions, PaginatedResult} from '#/types';
+import type {CountOptions, FindOptions, PaginatedResult, Projected, SelectMap, WriteOptions} from '#/types';
 
 /**
  * Cross-entity manager.
@@ -39,16 +39,21 @@ export class EntityManager {
   /**
    * Save an entity.
    */
-  async save<T extends object>(item: T, entityClass?: new () => T): Promise<T> {
+  async save<T extends object>(item: T, entityClass?: new () => T, options?: WriteOptions): Promise<T> {
     const Cls = entityClass ?? (item.constructor as new () => T);
-    return this.getRepository(Cls).save(item);
+    return this.getRepository(Cls).save(item, options);
   }
 
   /**
    * Update an entity.
    */
-  async update<T extends object>(entityClass: new () => T, key: Partial<T>, changes: Partial<T>): Promise<T> {
-    return this.getRepository(entityClass).update(key, changes);
+  async update<T extends object>(
+    entityClass: new () => T,
+    key: Partial<T>,
+    changes: Partial<T>,
+    options?: WriteOptions
+  ): Promise<T> {
+    return this.getRepository(entityClass).update(key, changes, options);
   }
 
   /**
@@ -76,48 +81,54 @@ export class EntityManager {
   /**
    * Find entities by GSI hash key. Index name derived as `${attributeName}GlobalIndex`.
    */
-  async findByIndex<T extends object>(
+  async findByIndex<T extends object, S extends SelectMap<T> | undefined = undefined>(
     entityClass: new () => T,
     attributeKey: keyof T & string,
     hashValue: unknown,
-    options?: FindOptions
-  ): Promise<PaginatedResult<T>> {
+    options?: FindOptions & {select?: S}
+  ): Promise<PaginatedResult<Projected<T, S>>> {
     return this.getRepository(entityClass).findByIndex(attributeKey, hashValue, options);
   }
 
   /**
    * Find entities by hash key.
    */
-  async find<T extends object>(
+  async find<T extends object, S extends SelectMap<T> | undefined = undefined>(
     entityClass: new () => T,
     hashValue: unknown,
-    options?: FindOptions
-  ): Promise<PaginatedResult<T>> {
+    options?: FindOptions & {select?: S}
+  ): Promise<PaginatedResult<Projected<T, S>>> {
     return this.getRepository(entityClass).find(hashValue, options);
   }
 
   /**
    * Auto-paginate find() until all pages are exhausted.
    */
-  async findAll<T extends object>(
+  async findAll<T extends object, S extends SelectMap<T> | undefined = undefined>(
     entityClass: new () => T,
     hashValue: unknown,
-    options?: Omit<FindOptions, 'startAt'>
-  ): Promise<T[]> {
+    options?: Omit<FindOptions, 'startAt'> & {select?: S}
+  ): Promise<Projected<T, S>[]> {
     return this.getRepository(entityClass).findAll(hashValue, options);
   }
 
   /**
    * Scan entities.
    */
-  async scan<T extends object>(entityClass: new () => T, options?: FindOptions): Promise<PaginatedResult<T>> {
+  async scan<T extends object, S extends SelectMap<T> | undefined = undefined>(
+    entityClass: new () => T,
+    options?: FindOptions & {select?: S}
+  ): Promise<PaginatedResult<Projected<T, S>>> {
     return this.getRepository(entityClass).scan(options);
   }
 
   /**
    * Auto-paginate scan() until all pages are exhausted.
    */
-  async scanAll<T extends object>(entityClass: new () => T, options?: Omit<FindOptions, 'startAt'>): Promise<T[]> {
+  async scanAll<T extends object, S extends SelectMap<T> | undefined = undefined>(
+    entityClass: new () => T,
+    options?: Omit<FindOptions, 'startAt'> & {select?: S}
+  ): Promise<Projected<T, S>[]> {
     return this.getRepository(entityClass).scanAll(options);
   }
 

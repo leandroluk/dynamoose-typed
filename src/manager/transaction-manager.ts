@@ -1,6 +1,6 @@
 import type {InternalModel} from '#/model/internal-model';
 import {Repository} from '#/repository/repository';
-import type {CountOptions, FindOptions, PaginatedResult} from '#/types';
+import type {CountOptions, FindOptions, PaginatedResult, Projected, SelectMap} from '#/types';
 import type {TransactionCollector} from './transaction-collector';
 
 /**
@@ -47,27 +47,33 @@ export class TransactionManager {
     return new Repository<T>(this.#getModel(entityClass)).findOneByOrFail(key, options);
   }
 
-  async find<T extends object>(
+  async find<T extends object, S extends SelectMap<T> | undefined = undefined>(
     entityClass: new () => T,
     hashValue: unknown,
-    options?: FindOptions
-  ): Promise<PaginatedResult<T>> {
+    options?: FindOptions & {select?: S}
+  ): Promise<PaginatedResult<Projected<T, S>>> {
     return new Repository<T>(this.#getModel(entityClass)).find(hashValue, options);
   }
 
-  async findAll<T extends object>(
+  async findAll<T extends object, S extends SelectMap<T> | undefined = undefined>(
     entityClass: new () => T,
     hashValue: unknown,
-    options?: Omit<FindOptions, 'startAt'>
-  ): Promise<T[]> {
+    options?: Omit<FindOptions, 'startAt'> & {select?: S}
+  ): Promise<Projected<T, S>[]> {
     return new Repository<T>(this.#getModel(entityClass)).findAll(hashValue, options);
   }
 
-  async scan<T extends object>(entityClass: new () => T, options?: FindOptions): Promise<PaginatedResult<T>> {
+  async scan<T extends object, S extends SelectMap<T> | undefined = undefined>(
+    entityClass: new () => T,
+    options?: FindOptions & {select?: S}
+  ): Promise<PaginatedResult<Projected<T, S>>> {
     return new Repository<T>(this.#getModel(entityClass)).scan(options);
   }
 
-  async scanAll<T extends object>(entityClass: new () => T, options?: Omit<FindOptions, 'startAt'>): Promise<T[]> {
+  async scanAll<T extends object, S extends SelectMap<T> | undefined = undefined>(
+    entityClass: new () => T,
+    options?: Omit<FindOptions, 'startAt'> & {select?: S}
+  ): Promise<Projected<T, S>[]> {
     return new Repository<T>(this.#getModel(entityClass)).scanAll(options);
   }
 

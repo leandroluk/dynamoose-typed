@@ -230,6 +230,36 @@ export interface TimestampOptions extends TransformOptions<Date> {
   [key: string]: unknown;
 }
 
+// ─── Write options ────────────────────────────────────────────────────────────
+
+/**
+ * Options accepted by write operations (`save`, `update`).
+ */
+export interface WriteOptions {
+  /**
+   * Server-side condition that must be satisfied for the write to succeed.
+   * Keys are TypeScript property names (alias-aware). Multiple entries are AND'd.
+   * On failure, DynamoDB throws `ConditionalCheckFailedException`.
+   */
+  condition?: Record<string, FilterCondition>;
+}
+
+// ─── Projection ──────────────────────────────────────────────────────────────
+
+/**
+ * Maps entity property keys to optional `true` values for projection.
+ * Pass to `find()`, `scan()`, and related methods to select a subset of attributes.
+ */
+export type SelectMap<T> = {readonly [K in keyof T]?: true};
+
+/**
+ * Narrows an entity type `T` to only the keys present in `S`.
+ * When `S` is `undefined`, resolves to the full entity type `T`.
+ */
+export type Projected<T, S extends SelectMap<T> | undefined = undefined> = [S] extends [undefined]
+  ? T
+  : Pick<T, Extract<keyof NonNullable<S>, keyof T>>;
+
 // ─── Pagination ───────────────────────────────────────────────────────────────
 
 /**

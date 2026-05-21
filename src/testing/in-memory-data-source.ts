@@ -1,5 +1,5 @@
 import {resolveTableSchema} from '#/schema';
-import type {AnyRecord, CountOptions, FindOptions, PaginatedResult} from '#/types';
+import type {AnyRecord, CountOptions, FindOptions, PaginatedResult, Projected, SelectMap, WriteOptions} from '#/types';
 import {InMemoryRepository} from './in-memory-repository';
 
 /**
@@ -83,13 +83,18 @@ export class InMemoryManager {
     return this.#repo(Cls).create(item);
   }
 
-  async save<T extends object>(item: T, entityClass?: new () => T): Promise<T> {
+  async save<T extends object>(item: T, entityClass?: new () => T, options?: WriteOptions): Promise<T> {
     const Cls = entityClass ?? (item.constructor as new () => T);
-    return this.#repo(Cls).save(item);
+    return this.#repo(Cls).save(item, options);
   }
 
-  async update<T extends object>(entityClass: new () => T, key: Partial<T>, changes: Partial<T>): Promise<T> {
-    return this.#repo(entityClass).update(key, changes);
+  async update<T extends object>(
+    entityClass: new () => T,
+    key: Partial<T>,
+    changes: Partial<T>,
+    options?: WriteOptions
+  ): Promise<T> {
+    return this.#repo(entityClass).update(key, changes, options);
   }
 
   async findOneBy<T extends object>(
@@ -108,16 +113,43 @@ export class InMemoryManager {
     return this.#repo(entityClass).findOneByOrFail(key, options);
   }
 
-  async find<T extends object>(
+  async findByIndex<T extends object, S extends SelectMap<T> | undefined = undefined>(
+    entityClass: new () => T,
+    attributeKey: keyof T & string,
+    hashValue: unknown,
+    options?: FindOptions & {select?: S}
+  ): Promise<PaginatedResult<Projected<T, S>>> {
+    return this.#repo(entityClass).findByIndex(attributeKey, hashValue, options);
+  }
+
+  async find<T extends object, S extends SelectMap<T> | undefined = undefined>(
     entityClass: new () => T,
     hashValue: unknown,
-    options?: FindOptions
-  ): Promise<PaginatedResult<T>> {
+    options?: FindOptions & {select?: S}
+  ): Promise<PaginatedResult<Projected<T, S>>> {
     return this.#repo(entityClass).find(hashValue, options);
   }
 
-  async scan<T extends object>(entityClass: new () => T, options?: FindOptions): Promise<PaginatedResult<T>> {
+  async findAll<T extends object, S extends SelectMap<T> | undefined = undefined>(
+    entityClass: new () => T,
+    hashValue: unknown,
+    options?: Omit<FindOptions, 'startAt'> & {select?: S}
+  ): Promise<Projected<T, S>[]> {
+    return this.#repo(entityClass).findAll(hashValue, options);
+  }
+
+  async scan<T extends object, S extends SelectMap<T> | undefined = undefined>(
+    entityClass: new () => T,
+    options?: FindOptions & {select?: S}
+  ): Promise<PaginatedResult<Projected<T, S>>> {
     return this.#repo(entityClass).scan(options);
+  }
+
+  async scanAll<T extends object, S extends SelectMap<T> | undefined = undefined>(
+    entityClass: new () => T,
+    options?: Omit<FindOptions, 'startAt'> & {select?: S}
+  ): Promise<Projected<T, S>[]> {
+    return this.#repo(entityClass).scanAll(options);
   }
 
   async count<T extends object>(entityClass: new () => T, options?: CountOptions): Promise<number> {

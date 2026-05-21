@@ -12,6 +12,8 @@
   - [Repository](README.md#repository)
   - [EntityManager](README.md#entitymanager)
   - [Transactions](README.md#transactions)
+  - [Condition expressions on writes](README.md#condition-expressions-on-writes)
+  - [Optimistic locking](README.md#optimistic-locking)
   - [GSI indexes](guides/gsi-indexes.md)
 
 - **Reference**

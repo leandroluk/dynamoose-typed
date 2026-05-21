@@ -1,5 +1,16 @@
 import type {ResolvedSchema} from '#/schema';
-import type {CountOptions, FindOptions, PaginatedResult} from '#/types';
+import type {CountOptions, FindOptions, PaginatedResult, Projected, SelectMap, WriteOptions} from '#/types';
+
+function projectItem<T>(item: T, select: SelectMap<T> | undefined): unknown {
+  if (!select) {
+    return item;
+  }
+  const result: Record<string, unknown> = {};
+  for (const key of Object.keys(select)) {
+    result[key] = (item as Record<string, unknown>)[key];
+  }
+  return result;
+}
 
 /**
  * In-memory repository for unit testing — no DynamoDB connection required.
@@ -40,7 +51,6 @@ export class InMemoryRepository<T extends object> {
 
   #injectTimestamps(item: Record<string, unknown>, isCreate: boolean): void {
     const now = new Date();
-    // Simple approach: write to the attribute name directly
     if (isCreate) {
       const createAttr = this.#findAttrByKind('createDate');
       if (createAttr) {
@@ -54,8 +64,6 @@ export class InMemoryRepository<T extends object> {
   }
 
   #findAttrByKind(kind: string): string | undefined {
-    // Look up in reverseAliasMap by scanning schema definition for known timestamp keys
-    // We use a convention: the attributeName stored in aliasMap values
     for (const [prop, attrName] of Object.entries(this.#schema.aliasMap)) {
       if (
         prop
@@ -74,14 +82,14 @@ export class InMemoryRepository<T extends object> {
     return {...data} as T;
   }
 
-  async save(item: T): Promise<T> {
+  async save(item: T, _options?: WriteOptions): Promise<T> {
     const clone = {...item} as Record<string, unknown>;
     this.#injectTimestamps(clone, true);
     this.#store.set(this.#keyOf(clone as unknown as T), clone as unknown as T);
     return clone as unknown as T;
   }
 
-  async update(key: Partial<T>, changes: Partial<T>): Promise<T> {
+  async update(key: Partial<T>, changes: Partial<T>, _options?: WriteOptions): Promise<T> {
     const k = this.#keyOf(key);
     const existing = this.#store.get(k);
     if (!existing) {
@@ -112,7 +120,26 @@ export class InMemoryRepository<T extends object> {
     return result;
   }
 
-  async find(hashValue: unknown, options: FindOptions = {}): Promise<PaginatedResult<T>> {
+  async findByIndex<S extends SelectMap<T> | undefined = undefined>(
+    attributeKey: keyof T & string,
+    hashValue: unknown,
+    options: FindOptions & {select?: S} = {}
+  ): Promise<PaginatedResult<Projected<T, S>>> {
+    let items = [...this.#store.values()].filter(i => (i as Record<string, unknown>)[attributeKey] === hashValue);
+    if (!options.withDeleted) {
+      items = items.filter(i => !this.#isSoftDeleted(i));
+    }
+    if (options.limit) {
+      items = items.slice(0, options.limit);
+    }
+    const projected = items.map(i => projectItem({...i}, options.select)) as Projected<T, S>[];
+    return {items: projected, count: projected.length};
+  }
+
+  async find<S extends SelectMap<T> | undefined = undefined>(
+    hashValue: unknown,
+    options: FindOptions & {select?: S} = {}
+  ): Promise<PaginatedResult<Projected<T, S>>> {
     const hashKey = this.#schema.hashKey;
     let items = [...this.#store.values()].filter(i => (i as Record<string, unknown>)[hashKey] === hashValue);
     if (!options.withDeleted) {
@@ -121,10 +148,20 @@ export class InMemoryRepository<T extends object> {
     if (options.limit) {
       items = items.slice(0, options.limit);
     }
-    return {items: items.map(i => ({...i})), count: items.length};
+    const projected = items.map(i => projectItem({...i}, options.select)) as Projected<T, S>[];
+    return {items: projected, count: projected.length};
   }
 
-  async scan(options: FindOptions = {}): Promise<PaginatedResult<T>> {
+  async findAll<S extends SelectMap<T> | undefined = undefined>(
+    hashValue: unknown,
+    options: Omit<FindOptions, 'startAt'> & {select?: S} = {}
+  ): Promise<Projected<T, S>[]> {
+    return (await this.find(hashValue, options as FindOptions & {select?: S})).items;
+  }
+
+  async scan<S extends SelectMap<T> | undefined = undefined>(
+    options: FindOptions & {select?: S} = {}
+  ): Promise<PaginatedResult<Projected<T, S>>> {
     let items = [...this.#store.values()];
     if (!options.withDeleted) {
       items = items.filter(i => !this.#isSoftDeleted(i));
@@ -132,7 +169,14 @@ export class InMemoryRepository<T extends object> {
     if (options.limit) {
       items = items.slice(0, options.limit);
     }
-    return {items: items.map(i => ({...i})), count: items.length};
+    const projected = items.map(i => projectItem({...i}, options.select)) as Projected<T, S>[];
+    return {items: projected, count: projected.length};
+  }
+
+  async scanAll<S extends SelectMap<T> | undefined = undefined>(
+    options: Omit<FindOptions, 'startAt'> & {select?: S} = {}
+  ): Promise<Projected<T, S>[]> {
+    return (await this.scan(options as FindOptions & {select?: S})).items;
   }
 
   async count(options: CountOptions = {}): Promise<number> {

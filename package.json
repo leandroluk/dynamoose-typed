@@ -1,6 +1,6 @@
 {
   "name": "@leandroluk/dynamoose-typed",
-  "version": "1.0.4",
+  "version": "1.1.0",
   "description": "A strongly-typed, decorator-driven ODM wrapper around Dynamoose",
   "main": "./dist/index.cjs",
   "module": "./dist/index.mjs",
@@ -11,12 +11,20 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.mjs",
       "require": "./dist/index.cjs"
+    },
+    "./testing": {
+      "types": "./dist/testing.d.ts",
+      "import": "./dist/testing.mjs",
+      "require": "./dist/testing.cjs"
     }
   },
   "typesVersions": {
     "*": {
-      "*": [
+      "index": [
         "./dist/index.d.ts"
+      ],
+      "testing": [
+        "./dist/testing.d.ts"
       ]
     }
   },
@@ -27,7 +35,7 @@
     "test:ui": "vitest --ui",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "lint": "eslint . --ext .ts --fix",
+    "lint": "eslint . --fix",
     "tsc": "tsc --noEmit"
   },
   "keywords": [

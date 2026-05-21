@@ -22,6 +22,8 @@ import {
   StringAttribute,
   UpdateDateAttribute,
   VersionAttribute,
+  type Projected,
+  type SelectMap,
 } from '#';
 import {DataSource} from '#/data-source/data-source';
 import {Attribute} from '#/decorators/attribute.decorators';
@@ -29,9 +31,9 @@ import {DynamoDocument, DynamoTable, DynamoTable as DynamoTableClass} from '#/de
 import {getTableMeta} from '#/decorators/metadata.registry';
 import {InternalModel} from '#/model/internal-model';
 import {resolveTableSchema} from '#/schema';
-import type {AnyRecord} from '#/types';
+import type {AnyRecord, FilterCondition} from '#/types';
 import dynamoose from 'dynamoose';
-import {type Mock, afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
+import {afterEach, beforeEach, describe, expect, it, vi, type Mock} from 'vitest';
 import {AuditedOrderTable, OrderTable, UserTable, VersionedTable} from './fixtures';
 
 // ── Mock model interface + factory ───────────────────────────────────────────
@@ -70,6 +72,7 @@ const makeMockDynamooseModel = (): MockDynamooseModel => {
     consistent: vi.fn().mockReturnThis(),
     startAt: vi.fn().mockReturnThis(),
     using: vi.fn().mockReturnThis(),
+    attributes: vi.fn().mockReturnThis(),
     exec: vi.fn().mockResolvedValue(Object.assign([], {lastKey: undefined})),
     where: vi.fn().mockReturnValue({
       eq: vi.fn().mockReturnThis(),
@@ -93,6 +96,7 @@ const makeMockDynamooseModel = (): MockDynamooseModel => {
     startAt: vi.fn().mockReturnThis(),
     count: vi.fn().mockReturnThis(),
     using: vi.fn().mockReturnThis(),
+    attributes: vi.fn().mockReturnThis(),
     exec: vi.fn().mockResolvedValue(Object.assign([], {lastKey: undefined})),
   };
   scanChain['filter'] = vi.fn().mockReturnValue(scanChain);
@@ -163,6 +167,7 @@ vi.mock('dynamoose', async importOriginal => {
       consistent: vi.fn().mockReturnThis(),
       startAt: vi.fn().mockReturnThis(),
       using: vi.fn().mockReturnThis(),
+      attributes: vi.fn().mockReturnThis(),
       exec: vi.fn().mockResolvedValue(Object.assign([], {lastKey: undefined})),
     }),
     scan: vi.fn().mockReturnValue({
@@ -170,6 +175,7 @@ vi.mock('dynamoose', async importOriginal => {
       startAt: vi.fn().mockReturnThis(),
       count: vi.fn().mockReturnThis(),
       using: vi.fn().mockReturnThis(),
+      attributes: vi.fn().mockReturnThis(),
       exec: vi.fn().mockResolvedValue(Object.assign([], {lastKey: undefined})),
     }),
   };
@@ -1253,5 +1259,325 @@ describe('@VersionAttribute and optimistic locking', () => {
     const repo = ds.getRepository(VersionedTable);
     await repo.update({id: '1'}, {name: 'Bob'} as Partial<VersionedTable>);
     expect(mockModel.update).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({name: 'Bob'}), undefined);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Projection (SelectMap / Projected)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('Projection expressions (select option)', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  const makeRepo = async (mockModel: MockDynamooseModel) => {
+    vi.spyOn(dynamoose, 'model').mockReturnValue(mockModel as any);
+    const ds = new DataSource({entities: [UserTable, OrderTable]});
+    await ds.initialize();
+    return ds.getRepository(UserTable);
+  };
+
+  it('find() without select returns full items (projectItem identity path)', async () => {
+    const mockModel = makeMockDynamooseModel();
+    const item = makeItem({id: 'u1', name: 'Alice', age: 30});
+    mockModel.query.mockReturnValue({
+      ...mockModel.query(),
+      exec: vi.fn().mockResolvedValue(Object.assign([item], {lastKey: undefined})),
+    });
+    const repo = await makeRepo(mockModel);
+    const result = await repo.find('u1');
+    expect(result.items[0]).toMatchObject({id: 'u1', name: 'Alice', age: 30});
+  });
+
+  it('find() with select projects items to selected keys', async () => {
+    const mockModel = makeMockDynamooseModel();
+    const item = makeItem({id: 'u1', name: 'Alice', age: 30});
+    const chain = makeMockDynamooseModel().query();
+    chain.exec = vi.fn().mockResolvedValue(Object.assign([item], {lastKey: undefined}));
+    mockModel.query.mockReturnValue(chain);
+    const repo = await makeRepo(mockModel);
+    const result = await repo.find('u1', {select: {id: true, name: true} as SelectMap<UserTable>});
+    expect(result.items[0]).toEqual({id: 'u1', name: 'Alice'});
+    expect((result.items[0] as any).age).toBeUndefined();
+    expect(chain.attributes).toHaveBeenCalledWith(expect.arrayContaining(['id', 'name']));
+  });
+
+  it('find() with select + soft-delete injects deletedAt attr into projection', async () => {
+    const mockModel = makeMockDynamooseModel();
+    const item = makeItem({id: 'u1', name: 'Alice', age: 30, deleted_at: null});
+    const chain = makeMockDynamooseModel().query();
+    chain.exec = vi.fn().mockResolvedValue(Object.assign([item], {lastKey: undefined}));
+    mockModel.query.mockReturnValue(chain);
+    const repo = await makeRepo(mockModel);
+    // UserTable has @DeleteDateAttribute('deleted_at') so soft-delete is active
+    const result = await repo.find('u1', {select: {id: true, name: true} as SelectMap<UserTable>});
+    // attributes() called with id, name AND deleted_at injected
+    expect(chain.attributes).toHaveBeenCalledWith(expect.arrayContaining(['deleted_at']));
+    // deleted_at not in final projection (only id, name)
+    expect(result.items[0]).toEqual({id: 'u1', name: 'Alice'});
+  });
+
+  it('find() with select + soft-delete does not double-inject deletedAt when already selected', async () => {
+    const mockModel = makeMockDynamooseModel();
+    const item = makeItem({id: 'u1', deleted_at: null});
+    const chain = makeMockDynamooseModel().query();
+    chain.exec = vi.fn().mockResolvedValue(Object.assign([item], {lastKey: undefined}));
+    mockModel.query.mockReturnValue(chain);
+    const repo = await makeRepo(mockModel);
+    await repo.find('u1', {select: {id: true, deletedAt: true} as SelectMap<UserTable>});
+    const attrCall = (chain.attributes as ReturnType<typeof vi.fn>).mock.calls[0]![0] as string[];
+    // deleted_at must appear exactly once
+    expect(attrCall.filter((a: string) => a === 'deleted_at')).toHaveLength(1);
+  });
+
+  it('scan() with select projects items', async () => {
+    const mockModel = makeMockDynamooseModel();
+    const item = makeItem({id: 'u1', name: 'Alice', age: 30});
+    const chain = makeMockDynamooseModel().scan();
+    chain.exec = vi.fn().mockResolvedValue(Object.assign([item], {lastKey: undefined}));
+    mockModel.scan.mockReturnValue(chain);
+    const repo = await makeRepo(mockModel);
+    const result = await repo.scan({select: {id: true} as SelectMap<UserTable>});
+    expect(result.items[0]).toEqual({id: 'u1'});
+    expect(chain.attributes).toHaveBeenCalledWith(expect.arrayContaining(['id']));
+  });
+
+  it('scan() with select + soft-delete injects deletedAt attr', async () => {
+    const mockModel = makeMockDynamooseModel();
+    const item = makeItem({id: 'u1', deleted_at: null});
+    const chain = makeMockDynamooseModel().scan();
+    chain.exec = vi.fn().mockResolvedValue(Object.assign([item], {lastKey: undefined}));
+    mockModel.scan.mockReturnValue(chain);
+    const repo = await makeRepo(mockModel);
+    await repo.scan({select: {id: true} as SelectMap<UserTable>});
+    expect(chain.attributes).toHaveBeenCalledWith(expect.arrayContaining(['deleted_at']));
+  });
+
+  it('scan() with select + soft-delete does not double-inject deletedAt', async () => {
+    const mockModel = makeMockDynamooseModel();
+    const item = makeItem({id: 'u1', deleted_at: null});
+    const chain = makeMockDynamooseModel().scan();
+    chain.exec = vi.fn().mockResolvedValue(Object.assign([item], {lastKey: undefined}));
+    mockModel.scan.mockReturnValue(chain);
+    const repo = await makeRepo(mockModel);
+    await repo.scan({select: {id: true, deletedAt: true} as SelectMap<UserTable>});
+    const attrCall = (chain.attributes as ReturnType<typeof vi.fn>).mock.calls[0]![0] as string[];
+    expect(attrCall.filter((a: string) => a === 'deleted_at')).toHaveLength(1);
+  });
+
+  it('findByIndex() with select projects items', async () => {
+    const mockModel = makeMockDynamooseModel();
+    const item = makeItem({id: 'u1', name: 'Alice', age: 30});
+    const chain = makeMockDynamooseModel().query();
+    chain.exec = vi.fn().mockResolvedValue(Object.assign([item], {lastKey: undefined}));
+    mockModel.query.mockReturnValue(chain);
+    const repo = await makeRepo(mockModel);
+    const result = await repo.findByIndex('name' as keyof UserTable & string, 'Alice', {
+      select: {id: true} as SelectMap<UserTable>,
+    });
+    expect(result.items[0]).toEqual({id: 'u1'});
+    expect(chain.attributes).toHaveBeenCalled();
+  });
+
+  it('findByIndex() with select + soft-delete injects deletedAt attr', async () => {
+    const mockModel = makeMockDynamooseModel();
+    const item = makeItem({id: 'u1', deleted_at: null});
+    const chain = makeMockDynamooseModel().query();
+    chain.exec = vi.fn().mockResolvedValue(Object.assign([item], {lastKey: undefined}));
+    mockModel.query.mockReturnValue(chain);
+    const repo = await makeRepo(mockModel);
+    await repo.findByIndex('name' as keyof UserTable & string, 'Alice', {
+      select: {id: true} as SelectMap<UserTable>,
+    });
+    expect(chain.attributes).toHaveBeenCalledWith(expect.arrayContaining(['deleted_at']));
+  });
+
+  it('findByIndex() with select + soft-delete does not double-inject deletedAt', async () => {
+    const mockModel = makeMockDynamooseModel();
+    const item = makeItem({id: 'u1', deleted_at: null});
+    const chain = makeMockDynamooseModel().query();
+    chain.exec = vi.fn().mockResolvedValue(Object.assign([item], {lastKey: undefined}));
+    mockModel.query.mockReturnValue(chain);
+    const repo = await makeRepo(mockModel);
+    await repo.findByIndex('name' as keyof UserTable & string, 'Alice', {
+      select: {id: true, deletedAt: true} as SelectMap<UserTable>,
+    });
+    const attrCall = (chain.attributes as ReturnType<typeof vi.fn>).mock.calls[0]![0] as string[];
+    expect(attrCall.filter((a: string) => a === 'deleted_at')).toHaveLength(1);
+  });
+
+  it('find() with select + withDeleted:true skips deletedAt injection', async () => {
+    const mockModel = makeMockDynamooseModel();
+    const chain = makeMockDynamooseModel().query();
+    chain.exec = vi.fn().mockResolvedValue(Object.assign([], {lastKey: undefined}));
+    mockModel.query.mockReturnValue(chain);
+    const repo = await makeRepo(mockModel);
+    await repo.find('u1', {select: {id: true} as SelectMap<UserTable>, withDeleted: true});
+    const attrCall = (chain.attributes as ReturnType<typeof vi.fn>).mock.calls[0]![0] as string[];
+    expect(attrCall).not.toContain('deleted_at');
+  });
+
+  it('scan() with select + withDeleted:true skips deletedAt injection', async () => {
+    const mockModel = makeMockDynamooseModel();
+    const chain = makeMockDynamooseModel().scan();
+    chain.exec = vi.fn().mockResolvedValue(Object.assign([], {lastKey: undefined}));
+    mockModel.scan.mockReturnValue(chain);
+    const repo = await makeRepo(mockModel);
+    await repo.scan({select: {id: true} as SelectMap<UserTable>, withDeleted: true});
+    const attrCall = (chain.attributes as ReturnType<typeof vi.fn>).mock.calls[0]![0] as string[];
+    expect(attrCall).not.toContain('deleted_at');
+  });
+
+  it('findByIndex() with select + withDeleted:true skips deletedAt injection', async () => {
+    const mockModel = makeMockDynamooseModel();
+    const chain = makeMockDynamooseModel().query();
+    chain.exec = vi.fn().mockResolvedValue(Object.assign([], {lastKey: undefined}));
+    mockModel.query.mockReturnValue(chain);
+    const repo = await makeRepo(mockModel);
+    await repo.findByIndex('name' as keyof UserTable & string, 'Alice', {
+      select: {id: true} as SelectMap<UserTable>,
+      withDeleted: true,
+    });
+    const attrCall = (chain.attributes as ReturnType<typeof vi.fn>).mock.calls[0]![0] as string[];
+    expect(attrCall).not.toContain('deleted_at');
+  });
+
+  it('Projected type narrows return type at compile time', () => {
+    type P = Projected<UserTable, {id: true; name: true}>;
+    const item: P = {id: 'u1', name: 'Alice'};
+    expect(item.id).toBe('u1');
+    // @ts-expect-error age not in projection
+    void item.age;
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Condition expressions on writes (WriteOptions)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('Condition expressions on writes (WriteOptions)', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  const makeUserRepo = async (mockModel: MockDynamooseModel) => {
+    vi.spyOn(dynamoose, 'model').mockReturnValue(mockModel as any);
+    const ds = new DataSource({entities: [UserTable]});
+    await ds.initialize();
+    return ds.getRepository(UserTable);
+  };
+
+  const makeVersionedRepo = async (mockModel: MockDynamooseModel) => {
+    vi.spyOn(dynamoose, 'model').mockReturnValue(mockModel as any);
+    const ds = new DataSource({entities: [VersionedTable]});
+    await ds.initialize();
+    return ds.getRepository(VersionedTable);
+  };
+
+  it('save() with condition (eq, ne, lt) calls create with condition object', async () => {
+    const mockModel = makeMockDynamooseModel();
+    mockModel.create.mockResolvedValue({id: 'u1', name: 'Alice', age: 30});
+    const repo = await makeUserRepo(mockModel);
+    await repo.save({id: 'u1', name: 'Alice', age: 30} as UserTable, {
+      condition: {id: {eq: 'u1'}, name: {ne: 'Bob'}, age: {lt: 100}},
+    });
+    expect(mockModel.create).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({condition: expect.anything()})
+    );
+  });
+
+  it('save() with condition (lte, gt, gte) calls create with condition', async () => {
+    const mockModel = makeMockDynamooseModel();
+    mockModel.create.mockResolvedValue({id: 'u1', name: 'Alice', age: 30});
+    const repo = await makeUserRepo(mockModel);
+    await repo.save({id: 'u1', name: 'Alice', age: 30} as UserTable, {
+      condition: {age: {lte: 99}},
+    });
+    expect(mockModel.create).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({condition: expect.anything()})
+    );
+    // separate calls for gt and gte branches
+    const repo2 = await makeUserRepo(makeMockDynamooseModel());
+    await repo2.save({id: 'u2', name: 'Bob', age: 1} as UserTable, {condition: {age: {gt: 0}}});
+    const repo3 = await makeUserRepo(makeMockDynamooseModel());
+    await repo3.save({id: 'u3', name: 'Carol', age: 1} as UserTable, {condition: {age: {gte: 1}}});
+  });
+
+  it('save() with condition (between, beginsWith, contains)', async () => {
+    const mockModel = makeMockDynamooseModel();
+    mockModel.create.mockResolvedValue({id: 'u1', name: 'Alice', age: 30});
+    const repo = await makeUserRepo(mockModel);
+    await repo.save({id: 'u1', name: 'Alice', age: 30} as UserTable, {
+      condition: {age: {between: [18, 65]}, name: {beginsWith: 'Al'}, id: {contains: '1'}},
+    });
+    expect(mockModel.create).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({condition: expect.anything()})
+    );
+  });
+
+  it('save() with condition (exists=true, exists=false, in)', async () => {
+    const mockModel = makeMockDynamooseModel();
+    mockModel.create.mockResolvedValue({id: 'u1', name: 'Alice', age: 30});
+    const repo = await makeUserRepo(mockModel);
+    await repo.save({id: 'u1', name: 'Alice', age: 30} as UserTable, {
+      condition: {name: {exists: true}, id: {in: ['u1', 'u2']}},
+    });
+    expect(mockModel.create).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({condition: expect.anything()})
+    );
+    // exists=false branch
+    const repo2 = await makeUserRepo(makeMockDynamooseModel());
+    await repo2.save({id: 'u2', name: 'Bob', age: 1} as UserTable, {condition: {id: {exists: false}}});
+  });
+
+  it('save() with condition + versionKey merges overwrite:false and condition', async () => {
+    const mockModel = makeMockDynamooseModel();
+    mockModel.create.mockResolvedValue({id: '1', name: 'x', version: 0});
+    const repo = await makeVersionedRepo(mockModel);
+    await repo.save({id: '1', name: 'x', version: 0}, {condition: {name: {eq: 'x'}}});
+    expect(mockModel.create).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({overwrite: false, condition: expect.anything()})
+    );
+  });
+
+  it('update() with condition (no version) passes condition to update', async () => {
+    const mockModel = makeMockDynamooseModel();
+    mockModel.update.mockResolvedValue({id: 'u1', name: 'Alice', age: 30});
+    const repo = await makeUserRepo(mockModel);
+    await repo.update({id: 'u1'}, {name: 'Alice'} as Partial<UserTable>, {
+      condition: {name: {eq: 'Old'}},
+    });
+    expect(mockModel.update).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({condition: expect.anything()})
+    );
+  });
+
+  it('buildCondition: empty condition entry hits final else-if false path', async () => {
+    const mockModel = makeMockDynamooseModel();
+    mockModel.create.mockResolvedValue({id: 'u1', name: 'Alice', age: 30});
+    const repo = await makeUserRepo(mockModel);
+    // empty FilterCondition — no operator set; loop runs but all branches false
+    await repo.save({id: 'u1', name: 'Alice', age: 30} as UserTable, {
+      condition: {id: {} as FilterCondition},
+    });
+    expect(mockModel.create).toHaveBeenCalled();
+  });
+
+  it('update() with condition + version merges both conditions (base path in buildCondition)', async () => {
+    const mockModel = makeMockDynamooseModel();
+    mockModel.update.mockResolvedValue({id: '1', name: 'x', version: 1});
+    const repo = await makeVersionedRepo(mockModel);
+    await repo.update({id: '1'}, {name: 'x', version: 0} as Partial<VersionedTable>, {
+      condition: {name: {eq: 'old'}},
+    });
+    expect(mockModel.update).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({version: 1}),
+      expect.objectContaining({condition: expect.anything()})
+    );
   });
 });

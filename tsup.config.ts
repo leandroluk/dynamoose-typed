@@ -1,7 +1,7 @@
 import {defineConfig} from 'tsup';
 
 const baseConfig = {
-  entry: ['src/index.ts'],
+  entry: {index: 'src/index.ts', testing: 'src/testing/index.ts'},
   target: 'node22',
   clean: true,
   bundle: true,

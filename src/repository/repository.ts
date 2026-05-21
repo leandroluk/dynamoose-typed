@@ -1,6 +1,16 @@
 import {OptimisticLockError} from '#/errors';
 import type {InternalModel} from '#/model/internal-model';
-import type {AnyRecord, CountOptions, FilterCondition, FindOptions, ItemKey, PaginatedResult} from '#/types';
+import type {
+  AnyRecord,
+  CountOptions,
+  FilterCondition,
+  FindOptions,
+  ItemKey,
+  PaginatedResult,
+  Projected,
+  SelectMap,
+  WriteOptions,
+} from '#/types';
 import type * as DynamoDB from '@aws-sdk/client-dynamodb';
 import {Condition} from 'dynamoose/dist/Condition';
 import {type InputKey} from 'dynamoose/dist/General';
@@ -10,6 +20,55 @@ interface ModelUpdateSettings {
   return?: 'item' | 'request';
   condition?: Condition;
   returnValues?: DynamoDB.ReturnValue;
+}
+
+function buildCondition(
+  filter: Record<string, FilterCondition>,
+  aliasMap: Record<string, string>,
+  base?: Condition
+): Condition {
+  const c = base ?? new Condition();
+  for (const [propKey, cond] of Object.entries(filter)) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const w = c.where(aliasMap[propKey]!) as any;
+    if (cond.eq !== undefined) {
+      w.eq(cond.eq);
+    } else if (cond.ne !== undefined) {
+      w.ne(cond.ne);
+    } else if (cond.lt !== undefined) {
+      w.lt(cond.lt);
+    } else if (cond.lte !== undefined) {
+      w.le(cond.lte);
+    } else if (cond.gt !== undefined) {
+      w.gt(cond.gt);
+    } else if (cond.gte !== undefined) {
+      w.ge(cond.gte);
+    } else if (cond.between !== undefined) {
+      w.between(cond.between[0], cond.between[1]);
+    } else if (cond.beginsWith !== undefined) {
+      w.beginsWith(cond.beginsWith);
+    } else if (cond.contains !== undefined) {
+      w.contains(cond.contains);
+    } else if (cond.exists === true) {
+      w.exists();
+    } else if (cond.exists === false) {
+      w.not().exists();
+    } else if (cond.in !== undefined) {
+      w.in(cond.in);
+    }
+  }
+  return c;
+}
+
+function projectItem<T>(item: T, select: SelectMap<T> | undefined): unknown {
+  if (!select) {
+    return item;
+  }
+  const result: Record<string, unknown> = {};
+  for (const key of Object.keys(select as unknown as Record<string, unknown>)) {
+    result[key] = (item as Record<string, unknown>)[key];
+  }
+  return result;
 }
 
 function applyFilters<Q>(q: Q, filter: Record<string, FilterCondition>, aliasMap: Record<string, string>): Q {
@@ -70,11 +129,18 @@ export class Repository<T extends object> {
    * Persists a new item. Runs beforeInsert/afterInsert hooks and injects timestamps.
    * For versioned entities, enforces insert-only semantics (throws if item already exists).
    */
-  async save(item: T): Promise<T> {
+  async save(item: T, options?: WriteOptions): Promise<T> {
     const raw = this.#model.toAttributeKey(item);
     this.#model.injectCreateTimestamps(raw);
     await this.#model.runHook('beforeInsert', raw);
-    const settings = this.#model.schema.versionKey ? {overwrite: false} : undefined;
+    const schema = this.#model.schema;
+    let settings: ItemSaveSettings | undefined;
+    if (schema.versionKey || options?.condition) {
+      settings = {
+        ...(schema.versionKey ? {overwrite: false} : {}),
+        ...(options?.condition ? {condition: buildCondition(options.condition, schema.aliasMap)} : {}),
+      } as ItemSaveSettings;
+    }
     await this.#model.raw.create(raw, settings as ItemSaveSettings);
     await this.#model.runHook('afterInsert', raw);
     return this.#model.normalize(raw);
@@ -86,12 +152,12 @@ export class Repository<T extends object> {
    * condition (`version = expected`) and auto-increments the version. Throws `OptimisticLockError`
    * on conflict.
    */
-  async update(key: ItemKey<T>, changes: Partial<T>): Promise<T> {
+  async update(key: ItemKey<T>, changes: Partial<T>, options?: WriteOptions): Promise<T> {
     const attrKey = this.#model.toAttributeKey(key);
     const attrChanges = this.#model.toAttributeKey(changes);
     this.#model.injectUpdateTimestamp(attrChanges);
 
-    const {versionKey, versionAttrName} = this.#model.schema;
+    const {versionKey, versionAttrName, aliasMap} = this.#model.schema;
     let updateSettings: {condition?: Condition} | undefined;
 
     if (versionKey && versionAttrName) {
@@ -102,6 +168,13 @@ export class Repository<T extends object> {
         };
         attrChanges[versionAttrName] = (expectedVersion as number) + 1;
       }
+    }
+
+    if (options?.condition) {
+      updateSettings = {
+        ...(updateSettings ?? {}),
+        condition: buildCondition(options.condition, aliasMap, updateSettings?.condition),
+      };
     }
 
     await this.#model.runHook('beforeUpdate', {...attrKey, ...attrChanges});
@@ -152,12 +225,13 @@ export class Repository<T extends object> {
    * Query items via a GSI. The index name is derived as `${attributeName}GlobalIndex`.
    * Requires `index: true` on the corresponding attribute decorator.
    */
-  async findByIndex(
+  async findByIndex<S extends SelectMap<T> | undefined = undefined>(
     attributeKey: keyof T & string,
     hashValue: unknown,
-    options: FindOptions = {}
-  ): Promise<PaginatedResult<T>> {
-    const attrName = this.#model.schema.aliasMap[attributeKey] ?? attributeKey;
+    options: FindOptions & {select?: S} = {}
+  ): Promise<PaginatedResult<Projected<T, S>>> {
+    const schema = this.#model.schema;
+    const attrName = schema.aliasMap[attributeKey] ?? attributeKey;
     const indexName = `${attrName}GlobalIndex`;
 
     let q = this.#model.raw
@@ -166,7 +240,7 @@ export class Repository<T extends object> {
       .using(indexName);
 
     if (options.filter) {
-      q = applyFilters(q, options.filter, this.#model.schema.aliasMap);
+      q = applyFilters(q, options.filter, schema.aliasMap);
     }
     if (options.limit) {
       q = q.limit(options.limit);
@@ -178,23 +252,42 @@ export class Repository<T extends object> {
       q = q.startAt(options.startAt);
     }
 
+    const {select} = options;
+    const softDelete = !options.withDeleted && this.#model.hasSoftDelete();
+
+    if (select) {
+      const attrNames = Object.keys(select).map(k => schema.aliasMap[k]);
+      if (softDelete) {
+        const deleteDateAttr = schema.aliasMap[schema.deleteDateKey!];
+        if (!attrNames.includes(deleteDateAttr)) {
+          attrNames.push(deleteDateAttr);
+        }
+      }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      q = (q as any).attributes(attrNames);
+    }
+
     const result = await q.exec();
     let items = result.map((r: unknown) => this.#model.normalize(r));
 
-    if (!options.withDeleted && this.#model.hasSoftDelete()) {
-      const deleteDateKey = this.#model.schema.deleteDateKey!;
+    if (softDelete) {
+      const deleteDateKey = schema.deleteDateKey!;
       items = items.filter(
         i => (i as AnyRecord)[deleteDateKey] === null || (i as AnyRecord)[deleteDateKey] === undefined
       );
     }
 
-    return {items, count: items.length, lastKey: result.lastKey as AnyRecord | undefined};
+    const projected = items.map(i => projectItem(i, select)) as Projected<T, S>[];
+    return {items: projected, count: projected.length, lastKey: result.lastKey as AnyRecord | undefined};
   }
 
   /**
    * Query all items by hash key value.
    */
-  async find(hashValue: unknown, options: FindOptions = {}): Promise<PaginatedResult<T>> {
+  async find<S extends SelectMap<T> | undefined = undefined>(
+    hashValue: unknown,
+    options: FindOptions & {select?: S} = {}
+  ): Promise<PaginatedResult<Projected<T, S>>> {
     const schema = this.#model.schema;
     let q = this.#model.raw.query(schema.hashKey).eq(hashValue as string | number);
 
@@ -232,27 +325,46 @@ export class Repository<T extends object> {
       q = q.startAt(options.startAt);
     }
 
-    const result = await q.exec();
-    let items = result.map(r => this.#model.normalize(r));
+    const {select} = options;
+    const softDelete = !options.withDeleted && this.#model.hasSoftDelete();
 
-    if (!options.withDeleted && this.#model.hasSoftDelete()) {
-      const deleteDateKey = this.#model.schema.deleteDateKey!;
+    if (select) {
+      const attrNames = Object.keys(select).map(k => schema.aliasMap[k]);
+      if (softDelete) {
+        const deleteDateAttr = schema.aliasMap[schema.deleteDateKey!];
+        if (!attrNames.includes(deleteDateAttr)) {
+          attrNames.push(deleteDateAttr);
+        }
+      }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      q = (q as any).attributes(attrNames);
+    }
+
+    const result = await q.exec();
+    let items = result.map((r: unknown) => this.#model.normalize(r));
+
+    if (softDelete) {
+      const deleteDateKey = schema.deleteDateKey!;
       items = items.filter(
         i => (i as AnyRecord)[deleteDateKey] === null || (i as AnyRecord)[deleteDateKey] === undefined
       );
     }
 
-    return {items, count: items.length, lastKey: result.lastKey as AnyRecord | undefined};
+    const projected = items.map(i => projectItem(i, select)) as Projected<T, S>[];
+    return {items: projected, count: projected.length, lastKey: result.lastKey as AnyRecord | undefined};
   }
 
   /**
    * Auto-paginate find() until all pages are exhausted. Returns all matching items.
    */
-  async findAll(hashValue: unknown, options: Omit<FindOptions, 'startAt'> = {}): Promise<T[]> {
-    const items: T[] = [];
+  async findAll<S extends SelectMap<T> | undefined = undefined>(
+    hashValue: unknown,
+    options: Omit<FindOptions, 'startAt'> & {select?: S} = {}
+  ): Promise<Projected<T, S>[]> {
+    const items: Projected<T, S>[] = [];
     let lastKey: AnyRecord | undefined;
     do {
-      const page = await this.find(hashValue, {...options, startAt: lastKey});
+      const page = await this.find(hashValue, {...options, startAt: lastKey} as FindOptions & {select?: S});
       items.push(...page.items);
       lastKey = page.lastKey;
     } while (lastKey);
@@ -262,11 +374,13 @@ export class Repository<T extends object> {
   /**
    * Auto-paginate scan() until all pages are exhausted. Returns all matching items.
    */
-  async scanAll(options: Omit<FindOptions, 'startAt'> = {}): Promise<T[]> {
-    const items: T[] = [];
+  async scanAll<S extends SelectMap<T> | undefined = undefined>(
+    options: Omit<FindOptions, 'startAt'> & {select?: S} = {}
+  ): Promise<Projected<T, S>[]> {
+    const items: Projected<T, S>[] = [];
     let lastKey: AnyRecord | undefined;
     do {
-      const page = await this.scan({...options, startAt: lastKey});
+      const page = await this.scan({...options, startAt: lastKey} as FindOptions & {select?: S});
       items.push(...page.items);
       lastKey = page.lastKey;
     } while (lastKey);
@@ -276,10 +390,13 @@ export class Repository<T extends object> {
   /**
    * Full-table scan.
    */
-  async scan(options: FindOptions = {}): Promise<PaginatedResult<T>> {
+  async scan<S extends SelectMap<T> | undefined = undefined>(
+    options: FindOptions & {select?: S} = {}
+  ): Promise<PaginatedResult<Projected<T, S>>> {
+    const schema = this.#model.schema;
     let s = this.#model.raw.scan();
     if (options.filter) {
-      s = applyFilters(s, options.filter, this.#model.schema.aliasMap);
+      s = applyFilters(s, options.filter, schema.aliasMap);
     }
     if (options.limit) {
       s = s.limit(options.limit);
@@ -288,17 +405,33 @@ export class Repository<T extends object> {
       s = s.startAt(options.startAt);
     }
 
-    const result = await s.exec();
-    let items = result.map(r => this.#model.normalize(r));
+    const {select} = options;
+    const softDelete = !options.withDeleted && this.#model.hasSoftDelete();
 
-    if (!options.withDeleted && this.#model.hasSoftDelete()) {
-      const deleteDateKey = this.#model.schema.deleteDateKey!;
+    if (select) {
+      const attrNames = Object.keys(select).map(k => schema.aliasMap[k]);
+      if (softDelete) {
+        const deleteDateAttr = schema.aliasMap[schema.deleteDateKey!];
+        if (!attrNames.includes(deleteDateAttr)) {
+          attrNames.push(deleteDateAttr);
+        }
+      }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      s = (s as any).attributes(attrNames);
+    }
+
+    const result = await s.exec();
+    let items = result.map((r: unknown) => this.#model.normalize(r));
+
+    if (softDelete) {
+      const deleteDateKey = schema.deleteDateKey!;
       items = items.filter(
         i => (i as AnyRecord)[deleteDateKey] === null || (i as AnyRecord)[deleteDateKey] === undefined
       );
     }
 
-    return {items, count: items.length, lastKey: result.lastKey as AnyRecord | undefined};
+    const projected = items.map(i => projectItem(i, select)) as Projected<T, S>[];
+    return {items: projected, count: projected.length, lastKey: result.lastKey as AnyRecord | undefined};
   }
 
   /**

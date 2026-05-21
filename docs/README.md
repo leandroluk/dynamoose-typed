@@ -41,6 +41,10 @@ Dynamoose is a great library, but its TypeScript story is painfully lacking. The
 - `count()` sparse-GSI optimization — two `Select: COUNT` scans instead of fetching item bodies
 - Atomic transactions via `dataSource.transaction()`
 - Batch operations (`batchSave`, `batchGet`, `batchDelete`)
+- Auto-pagination via `findAll()` and `scanAll()`
+- Projection expressions — `select: { id: true, name: true }` narrows the return type at compile time
+- Optimistic locking via `@VersionAttribute` — prevents write conflicts with automatic condition checks
+- TTL support via `@DateAttribute({ ttl: true })` — stores epoch seconds and propagates to DynamoDB's `timeToLive`
 - `InMemoryDataSource` for fast, zero-infrastructure unit tests
 - 100% statement / branch / function coverage
 
@@ -216,6 +220,33 @@ const { items: allUsers } = await userRepository.scan({ withDeleted: false });
 // query by GSI (requires index: true on the attribute)
 const { items: byEmail } = await userRepository.findByIndex('email', 'alice@example.com');
 
+// auto-paginate find() until lastKey is exhausted
+const allItems = await userRepository.findAll('alice-partition');
+const allWithFilter = await userRepository.findAll('alice-partition', {
+  filter: { age: { gte: 18 } },
+});
+
+// auto-paginate scan() until lastKey is exhausted
+const everything = await userRepository.scanAll();
+
+// projection — select only specific attributes (reduces DynamoDB read cost)
+// return type is automatically narrowed by TypeScript
+const { items: slim } = await userRepository.find('alice-partition', {
+  select: { id: true, name: true },
+});
+// slim: Pick<UserTable, 'id' | 'name'>[]
+
+const { items: ids } = await userRepository.scan({ select: { id: true } });
+// ids: Pick<UserTable, 'id'>[]
+
+const { items: byEmail } = await userRepository.findByIndex('email', 'alice@example.com', {
+  select: { id: true, name: true },
+});
+
+// findAll / scanAll also support select
+const names = await userRepository.findAll('alice-partition', { select: { id: true, name: true } });
+// names: Pick<UserTable, 'id' | 'name'>[]
+
 // count
 const total = await userRepository.count();
 
@@ -265,6 +296,87 @@ await dataSource.transaction(async (tx) => {
 
 > DynamoDB limits: max 100 items per transaction, same-region only.
 
+## Condition expressions on writes
+
+Pass a `condition` in `WriteOptions` to `save()` or `update()` to add a server-side guard. If the condition is not met, DynamoDB throws `ConditionalCheckFailedException`. Keys are TypeScript property names (alias-aware); multiple entries are AND'd.
+
+```typescript
+import { WriteOptions } from 'dynamoose-typed';
+
+// put only-if-not-exists (id attribute must not exist in the table)
+await repo.save(newItem, {
+  condition: { id: { exists: false } },
+});
+
+// update only-if-status-is-pending
+await repo.update({ id: '1' }, { status: 'processing' }, {
+  condition: { status: { eq: 'pending' } },
+});
+
+// update only-if-price-below-threshold
+await repo.update({ id: '1' }, { price: 99 }, {
+  condition: { price: { lt: 100 } },
+});
+```
+
+Supported operators: `eq`, `ne`, `lt`, `lte`, `gt`, `gte`, `between`, `beginsWith`, `contains`, `exists`, `in`.
+
+When used together with `@VersionAttribute`, both conditions are AND'd automatically:
+
+```typescript
+// version lock AND business-rule condition
+await repo.update({ id: '1' }, { status: 'done', version: 2 }, {
+  condition: { assignee: { eq: 'alice' } },
+});
+// succeeds only if version == 2 AND assignee == 'alice'
+```
+
+> Condition expressions are not supported inside `dataSource.transaction()` callbacks.
+
+## Optimistic locking
+
+`@VersionAttribute` adds an integer version counter to a table. On `update()`, if the `changes` object includes the version field, the library automatically:
+
+1. Adds a DynamoDB condition: `version = expectedVersion`
+2. Increments the stored value to `expectedVersion + 1`
+
+If another process modified the item between your read and write, DynamoDB rejects the update and `OptimisticLockError` is thrown.
+
+```typescript
+import { DynamoTable, StringAttribute, VersionAttribute, OptimisticLockError } from 'dynamoose-typed';
+
+@DynamoTable('products')
+class ProductTable {
+  @StringAttribute({ hashKey: true })
+  id!: string;
+
+  @StringAttribute()
+  name!: string;
+
+  @VersionAttribute()
+  version!: number; // starts at 0, auto-incremented on each update
+}
+```
+
+```typescript
+const repo = dataSource.getRepository(ProductTable);
+
+// save() on a versioned table uses put-if-not-exists semantics
+const product = await repo.save({ id: 'p1', name: 'Widget', version: 0 });
+
+// update() with version: optimistic lock applied automatically
+try {
+  await repo.update({ id: 'p1' }, { name: 'Widget v2', version: 0 });
+  // if version in DB is still 0 → succeeds, DB version becomes 1
+} catch (err) {
+  if (err instanceof OptimisticLockError) {
+    // another process wrote between your read and this update
+  }
+}
+```
+
+Omitting the version field from `changes` skips the condition check entirely, making the update unconditional.
+
 ## Attribute decorators reference
 
 | Decorator                     | DynamoDB type | Notes                                                                                      |
@@ -272,10 +384,11 @@ await dataSource.transaction(async (tx) => {
 | `@StringAttribute`            | S             | Supports `hashKey`, `rangeKey`, `minLength`, `maxLength`, `trim`, `lowercase`, `uppercase` |
 | `@NumberAttribute`            | N             | Supports `min`, `max`                                                                      |
 | `@BooleanAttribute`           | BOOL          |                                                                                            |
-| `@DateAttribute`              | S / N         | `format: 'epoch'` (default) or `'iso'`; `ttl: true` stores epoch **seconds** with auto transforms |
+| `@DateAttribute`              | S / N         | `format: 'epoch'` (default) or `'iso'`; `ttl: true` stores epoch **seconds** and registers as DynamoDB TTL attribute |
 | `@CreateDateAttribute`        | S / N         | Set once on insert, never updated; `format: 'epoch'` (default) or `'iso'`                 |
 | `@UpdateDateAttribute`        | S / N         | Updated on every save/update; `format: 'epoch'` (default) or `'iso'`                      |
 | `@DeleteDateAttribute`        | S / N         | Set by `delete()`, cleared by `restore()`; `index: true` enables sparse-GSI `count()` optimization |
+| `@VersionAttribute`           | N             | Starts at `0`; `update()` with version field applies optimistic-lock condition and auto-increments |
 | `@NestedAttribute(() => Doc)` | M             | Doc must be decorated with `@DynamoDocument`                                               |
 | `@ArrayAttribute(() => Type)` | L             | Primitives or `@DynamoDocument` instances                                                  |
 | `@SetAttribute(() => Type)`   | SS / NS       | Must be a `Set<string>` or `Set<number>`                                                   |
@@ -394,6 +507,20 @@ describe('UserService', () => {
 **`getRepository` lazy-initializes the DataSource** if you haven't called `initialize()` yet. This is useful for lightweight scripts that don't need an explicit boot sequence.
 
 **Timestamp storage format defaults to `epoch` (milliseconds as Number).** Pass `{ format: 'iso' }` to store as ISO-8601 strings instead. The `Date` native storage type is no longer supported.
+
+**Use `@DateAttribute({ ttl: true })` for DynamoDB TTL.** The value is stored as epoch **seconds** (not milliseconds). Set the property to a future `Date` and DynamoDB will automatically delete the item after that point. The library handles the seconds-vs-milliseconds conversion transparently.
+
+```typescript
+@DateAttribute('expires_at', { ttl: true })
+expiresAt!: Date;
+
+// set TTL to 24 hours from now
+await repo.save({ id: '1', expiresAt: new Date(Date.now() + 86400_000) });
+```
+
+**`select` projections reduce read cost on large items.** The library calls DynamoDB's `ProjectionExpression` server-side — only the requested attributes are returned. The TypeScript return type is narrowed to `Pick<T, selectedKeys>` automatically. When soft-delete is active, the `deletedAt` attribute is silently injected into the projection so filtering works correctly, then stripped from the result.
+
+**`@VersionAttribute` does not protect inserts — only updates.** On `save()` the library uses `overwrite: false` (put-if-not-exists). On `update()`, pass the version you read from DynamoDB in `changes`; omit it to skip the check. The version is never auto-read — you own the read-then-write cycle.
 
 **DynamoDB transactions have a hard limit of 100 items.** If your callback enqueues more than 100 writes, DynamoDB will reject the flush. Split large transactions into smaller chunks.
 
