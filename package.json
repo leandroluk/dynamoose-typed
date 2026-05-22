@@ -102,5 +102,9 @@
       "esbuild",
       "lefthook"
     ]
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
   }
 }
