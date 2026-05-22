@@ -84,7 +84,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22.x
-          registry-url: 'https://registry.npmjs.org'
 
       - name: Install dependencies
         if: steps.check.outputs.publish == 'true'
@@ -105,5 +104,3 @@ jobs:
       - name: Publish package
         if: steps.check.outputs.publish == 'true'
         run: npm publish --access public --provenance
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
