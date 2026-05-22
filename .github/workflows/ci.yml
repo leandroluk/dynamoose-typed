@@ -84,7 +84,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22.x
-          registry-url: 'https://registry.npmjs.org' # required for OIDC Trusted Publisher
 
       - name: Install dependencies
         if: steps.check.outputs.publish == 'true'
