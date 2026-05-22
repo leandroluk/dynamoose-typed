@@ -97,7 +97,9 @@ jobs:
 
       - name: Publish package
         if: steps.check.outputs.publish == 'true'
-        run: npm publish --access public --provenance --ignore-scripts
+        run: |
+          npm pkg delete scripts.prepare
+          npm publish --access public --provenance
 
       - name: Create and push tag
         if: steps.check.outputs.publish == 'true'
