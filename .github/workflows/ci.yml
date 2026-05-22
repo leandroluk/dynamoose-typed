@@ -48,6 +48,13 @@ jobs:
       - name: Test Coverage
         run: pnpm test:coverage
 
+      - name: Upload dist artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+          retention-days: 1
+
   publish:
     name: Publish to NPM
     needs: build
@@ -75,30 +82,22 @@ jobs:
             echo "version=v$VERSION" >> $GITHUB_OUTPUT
           fi
 
-      - name: Install pnpm
-        if: steps.check.outputs.publish == 'true'
-        uses: pnpm/action-setup@v4
-
       - name: Setup Node.js
         if: steps.check.outputs.publish == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: 22.x
-          registry-url: 'https://registry.npmjs.org' # required for OIDC Trusted Publisher
 
-      - name: Install dependencies
+      - name: Download dist artifact
         if: steps.check.outputs.publish == 'true'
-        run: pnpm install --frozen-lockfile
-
-      - name: Build
-        if: steps.check.outputs.publish == 'true'
-        run: pnpm build
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
 
       - name: Publish package
         if: steps.check.outputs.publish == 'true'
-        run: npm publish --access public --provenance
-        env:
-          NPM_CONFIG_PROVENANCE: true
+        run: npm publish --access public --provenance --ignore-scripts
 
       - name: Create and push tag
         if: steps.check.outputs.publish == 'true'
