@@ -75,7 +75,7 @@
     "@commitlint/config-conventional": "21.0.1",
     "@commitlint/types": "21.0.1",
     "@eslint/js": "10.0.1",
-    "@swc/core": "^1.15.26",
+    "@swc/core": "1.15.26",
     "@vitest/coverage-v8": "4.1.4",
     "@vitest/eslint-plugin": "1.6.16",
     "dynamoose": "4.2.0",
@@ -86,9 +86,9 @@
     "jiti": "2.6.1",
     "lefthook": "2.1.6",
     "tsup": "8.5.1",
-    "typescript": "^6.0.3",
+    "typescript": "6.0.3",
     "typescript-eslint": "8.58.2",
-    "unplugin-swc": "^1.5.9",
+    "unplugin-swc": "1.5.9",
     "vitest": "4.1.4"
   },
   "peerDependencies": {
