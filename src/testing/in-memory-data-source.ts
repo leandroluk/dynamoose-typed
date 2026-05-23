@@ -22,10 +22,13 @@ import {InMemoryRepository} from './in-memory-repository';
 export class InMemoryDataSource {
   readonly #repos = new Map<new () => unknown, InMemoryRepository<AnyRecord>>();
 
-  constructor(options: {entities: (new () => unknown)[]}) {
+  constructor(options: {entities: (new () => unknown)[]; table?: {prefix?: string; suffix?: string}}) {
     for (const entityClass of options.entities) {
       const schema = resolveTableSchema(entityClass);
-      this.#repos.set(entityClass, new InMemoryRepository(schema));
+      const prefix = options.table?.prefix ?? '';
+      const suffix = options.table?.suffix ?? '';
+      const tableName = `${prefix}${schema.tableName}${suffix}`;
+      this.#repos.set(entityClass, new InMemoryRepository({...schema, tableName}));
     }
   }
 
