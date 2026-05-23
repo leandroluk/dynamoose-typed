@@ -38,6 +38,32 @@ export interface DataSourceOptions {
          */
         port?: number;
       };
+
+  /**
+   * Global table name transformations applied to all registered entities at initialization time.
+   * Useful for separating environments (prod, staging, dev) within a shared DynamoDB account.
+   *
+   * @example
+   * // @DynamoTable('users') → 'prod_users'
+   * table: { prefix: 'prod_' }
+   *
+   * @example
+   * // @DynamoTable('users') → 'prod_users_v2'
+   * table: { prefix: 'prod_', suffix: '_v2' }
+   */
+  table?: {
+    /**
+     * String prepended to every table name.
+     * E.g. `'prod_'` transforms `'users'` → `'prod_users'`.
+     */
+    prefix?: string;
+
+    /**
+     * String appended to every table name.
+     * E.g. `'_v2'` transforms `'users'` → `'users_v2'`.
+     */
+    suffix?: string;
+  };
 }
 
 /**
@@ -213,15 +239,19 @@ export class DataSource {
     }
 
     const resolved = resolveTableSchema(entityClass);
+    const prefix = this.#options.table?.prefix ?? '';
+    const suffix = this.#options.table?.suffix ?? '';
+    const tableName = `${prefix}${resolved.tableName}${suffix}`;
+
     // @ts-expect-error - Dynamoose v4 type alignment
     const dSchema = new dynamoose.Schema(resolved.definition, resolved.schemaOptions);
-    const dModel = dynamoose.model(resolved.tableName, dSchema);
+    const dModel = dynamoose.model(tableName, dSchema);
 
-    new this.#instance.Table(resolved.tableName, [dModel], resolved.tableOptions);
+    new this.#instance.Table(tableName, [dModel], resolved.tableOptions);
 
     this.#models.set(
       entityClass as new () => unknown,
-      new InternalModel(entityClass as new () => AnyItem, resolved, dModel)
+      new InternalModel(entityClass as new () => AnyItem, {...resolved, tableName}, dModel)
     );
   }
 
