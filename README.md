@@ -42,6 +42,7 @@ Dynamoose is a great library, but its TypeScript story is painfully lacking. The
 - Atomic transactions via `dataSource.transaction()`
 - Batch operations (`batchSave`, `batchGet`, `batchDelete`)
 - `InMemoryDataSource` for fast, zero-infrastructure unit tests
+- Global table name prefix/suffix — isolate environments via `DataSourceOptions.table`
 - 100% statement / branch / function coverage
 
 ## Requirements
@@ -152,6 +153,42 @@ const dataSource = new DataSource({
   local: { host: 'localhost', port: 8000 },
 });
 await dataSource.initialize();
+```
+
+## Table name prefix/suffix
+
+When multiple environments share a single DynamoDB account, you can isolate them using a table name prefix or suffix rather than separate regions:
+
+```typescript
+// production: @DynamoTable('users') → 'prod_users'
+const dataSource = new DataSource({
+  entities: [UserTable, OrderTable],
+  documentClient: new DynamoDBClient({ region: 'us-east-1' }),
+  table: { prefix: 'prod_' },
+});
+
+// staging: @DynamoTable('users') → 'staging_users'
+const stagingDs = new DataSource({
+  entities: [UserTable],
+  documentClient: new DynamoDBClient({ region: 'us-east-1' }),
+  table: { prefix: 'staging_' },
+});
+
+// both prefix and suffix: @DynamoTable('users') → 'prod_users_v2'
+const ds = new DataSource({
+  entities: [UserTable],
+  documentClient: new DynamoDBClient({ region: 'us-east-1' }),
+  table: { prefix: 'prod_', suffix: '_v2' },
+});
+```
+
+Works with `InMemoryDataSource` too — useful for verifying naming conventions in tests:
+
+```typescript
+const ds = new InMemoryDataSource({
+  entities: [UserTable],
+  table: { prefix: 'prod_' },
+});
 ```
 
 ## Repository

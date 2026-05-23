@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.2.0] - 2026-05-23
+
+### Added
+
+- **Table name prefix/suffix** — `DataSourceOptions` and `InMemoryDataSource` now accept a `table?: { prefix?: string; suffix?: string }` option. When set, the prefix/suffix is applied to every registered entity's table name at initialization time. Useful for isolating environments (prod, staging, dev) within a shared DynamoDB account. Example: `@DynamoTable('users')` with `table: { prefix: 'prod_' }` resolves to `prod_users`.
+
 ## [1.1.0] - 2026-05-21
 
 ### Added

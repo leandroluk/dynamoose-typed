@@ -15,6 +15,7 @@
   - [Condition expressions on writes](README.md#condition-expressions-on-writes)
   - [Optimistic locking](README.md#optimistic-locking)
   - [GSI indexes](guides/gsi-indexes.md)
+  - [Table prefix/suffix](guides/table-name-prefix-suffix.md)
 
 - **Reference**
   - [Attribute decorators](README.md#attribute-decorators-reference)
