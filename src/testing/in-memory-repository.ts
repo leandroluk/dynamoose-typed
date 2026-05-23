@@ -24,6 +24,11 @@ export class InMemoryRepository<T extends object> {
     this.#schema = schema;
   }
 
+  /** The resolved table name (includes any prefix/suffix applied by InMemoryDataSource). */
+  get tableName(): string {
+    return this.#schema.tableName;
+  }
+
   // ── Key helpers ────────────────────────────────────────────────────────────
 
   #keyOf(item: Partial<T>): string {
