@@ -143,7 +143,7 @@ import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 
 const dataSource = new DataSource({
   entities: [UserTable, OrderTable],
-  documentClient: new DynamoDBClient({ region: 'us-east-1' }),
+  client: new DynamoDBClient({ region: 'us-east-1' }),
 });
 
 await dataSource.initialize();
@@ -167,21 +167,21 @@ When multiple environments share a single DynamoDB account, you can isolate them
 // production: @DynamoTable('users') → 'prod_users'
 const dataSource = new DataSource({
   entities: [UserTable, OrderTable],
-  documentClient: new DynamoDBClient({ region: 'us-east-1' }),
+  client: new DynamoDBClient({ region: 'us-east-1' }),
   table: { prefix: 'prod_' },
 });
 
 // staging: @DynamoTable('users') → 'staging_users'
 const stagingDs = new DataSource({
   entities: [UserTable],
-  documentClient: new DynamoDBClient({ region: 'us-east-1' }),
+  client: new DynamoDBClient({ region: 'us-east-1' }),
   table: { prefix: 'staging_' },
 });
 
 // both prefix and suffix: @DynamoTable('users') → 'prod_users_v2'
 const ds = new DataSource({
   entities: [UserTable],
-  documentClient: new DynamoDBClient({ region: 'us-east-1' }),
+  client: new DynamoDBClient({ region: 'us-east-1' }),
   table: { prefix: 'prod_', suffix: '_v2' },
 });
 ```
@@ -416,20 +416,20 @@ Omitting the version field from `changes` skips the condition check entirely, ma
 
 ## Attribute decorators reference
 
-| Decorator                     | DynamoDB type | Notes                                                                                      |
-| ----------------------------- | ------------- | ------------------------------------------------------------------------------------------ |
-| `@StringAttribute`            | S             | Supports `hashKey`, `rangeKey`, `minLength`, `maxLength`, `trim`, `lowercase`, `uppercase` |
-| `@NumberAttribute`            | N             | Supports `min`, `max`                                                                      |
-| `@BooleanAttribute`           | BOOL          |                                                                                            |
+| Decorator                     | DynamoDB type | Notes                                                                                                                |
+| ----------------------------- | ------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `@StringAttribute`            | S             | Supports `hashKey`, `rangeKey`, `minLength`, `maxLength`, `trim`, `lowercase`, `uppercase`                           |
+| `@NumberAttribute`            | N             | Supports `min`, `max`                                                                                                |
+| `@BooleanAttribute`           | BOOL          |                                                                                                                      |
 | `@DateAttribute`              | S / N         | `format: 'epoch'` (default) or `'iso'`; `ttl: true` stores epoch **seconds** and registers as DynamoDB TTL attribute |
-| `@CreateDateAttribute`        | S / N         | Set once on insert, never updated; `format: 'epoch'` (default) or `'iso'`                 |
-| `@UpdateDateAttribute`        | S / N         | Updated on every save/update; `format: 'epoch'` (default) or `'iso'`                      |
-| `@DeleteDateAttribute`        | S / N         | Set by `delete()`, cleared by `restore()`; `index: true` enables sparse-GSI `count()` optimization |
-| `@VersionAttribute`           | N             | Starts at `0`; `update()` with version field applies optimistic-lock condition and auto-increments |
-| `@NestedAttribute(() => Doc)` | M             | Doc must be decorated with `@DynamoDocument`                                               |
-| `@ArrayAttribute(() => Type)` | L             | Primitives or `@DynamoDocument` instances                                                  |
-| `@SetAttribute(() => Type)`   | SS / NS       | Must be a `Set<string>` or `Set<number>`                                                   |
-| `@Attribute(options)`         | any           | Raw Dynamoose attribute passthrough                                                        |
+| `@CreateDateAttribute`        | S / N         | Set once on insert, never updated; `format: 'epoch'` (default) or `'iso'`                                            |
+| `@UpdateDateAttribute`        | S / N         | Updated on every save/update; `format: 'epoch'` (default) or `'iso'`                                                 |
+| `@DeleteDateAttribute`        | S / N         | Set by `delete()`, cleared by `restore()`; `index: true` enables sparse-GSI `count()` optimization                   |
+| `@VersionAttribute`           | N             | Starts at `0`; `update()` with version field applies optimistic-lock condition and auto-increments                   |
+| `@NestedAttribute(() => Doc)` | M             | Doc must be decorated with `@DynamoDocument`                                                                         |
+| `@ArrayAttribute(() => Type)` | L             | Primitives or `@DynamoDocument` instances                                                                            |
+| `@SetAttribute(() => Type)`   | SS / NS       | Must be a `Set<string>` or `Set<number>`                                                                             |
+| `@Attribute(options)`         | any           | Raw Dynamoose attribute passthrough                                                                                  |
 
 All decorators accept an optional first argument `alias` (string) to map a TypeScript property name to a different DynamoDB attribute name:
 
@@ -482,11 +482,11 @@ const activeCount = await repo.count();
 const totalCount = await repo.count({ withDeleted: true });
 ```
 
-| Condition | Strategy | Item bodies |
-|---|---|---|
-| `withDeleted: true` or no soft-delete | `Select: COUNT` | No |
-| Soft-delete + GSI (`index: true`) | 2× `Select: COUNT` (total − GSI) | No |
-| Soft-delete, no GSI | Full scan + client-side filter | Yes |
+| Condition                             | Strategy                         | Item bodies |
+| ------------------------------------- | -------------------------------- | ----------- |
+| `withDeleted: true` or no soft-delete | `Select: COUNT`                  | No          |
+| Soft-delete + GSI (`index: true`)     | 2× `Select: COUNT` (total − GSI) | No          |
+| Soft-delete, no GSI                   | Full scan + client-side filter   | Yes         |
 
 See the [full GSI guide](guides/gsi-indexes.md) for details.
 
@@ -572,4 +572,3 @@ beforeEach(() => dataSource.clear());
 If you find this project useful, please consider supporting its development:
 
 <a href="https://buymeacoffee.com/leandroluk" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" style="height: 42px !important;width: 151.2px !important;" ></a>
-

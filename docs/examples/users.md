@@ -113,7 +113,7 @@ import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 
 const dataSource = new DataSource({
   entities: [UserTable],
-  documentClient: new DynamoDBClient({ region: 'us-east-1' }),
+  client: new DynamoDBClient({ region: 'us-east-1' }),
 });
 
 await dataSource.initialize();

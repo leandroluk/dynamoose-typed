@@ -19,25 +19,25 @@ export interface DataSourceOptions {
    * An optional pre-configured DynamoDB client instance (e.g. from `@aws-sdk/client-dynamodb`).
    * If not specified, Dynamoose will attempt to instantiate a client using default AWS SDK environment variables.
    */
-  documentClient?: DynamoDB | DynamoDBClient;
+  client?: DynamoDB | DynamoDBClient;
 
   /**
    * Enables connecting to a local DynamoDB instance (e.g., DynamoDB Local running in Docker or offline).
    * Can be set to `true` to use the default `http://localhost:8000`, or an object specifying host/port configuration.
    */
   local?:
-    | boolean
-    | {
-        /**
-         * Hostname of the local DynamoDB server. Defaults to `'localhost'`.
-         */
-        host?: string;
+  | boolean
+  | {
+    /**
+     * Hostname of the local DynamoDB server. Defaults to `'localhost'`.
+     */
+    host?: string;
 
-        /**
-         * Port of the local DynamoDB server. Defaults to `8000`.
-         */
-        port?: number;
-      };
+    /**
+     * Port of the local DynamoDB server. Defaults to `8000`.
+     */
+    port?: number;
+  };
 
   /**
    * Global table name transformations applied to all registered entities at initialization time.
@@ -73,7 +73,7 @@ export interface DataSourceOptions {
  * ```ts
  * const dataSource = new DataSource({
  *   entities: [UserTable, OrderTable],
- *   documentClient: new DynamoDBClient({ region: 'us-east-1' }),
+ *   client: new DynamoDBClient({ region: 'us-east-1' }),
  * });
  *
  * await dataSource.initialize();
@@ -216,7 +216,7 @@ export class DataSource {
    * Configure the AWS client.
    */
   #configureClient(): void {
-    const {documentClient, local} = this.#options;
+    const {client, local} = this.#options;
 
     if (local) {
       const host = typeof local === 'object' ? (local.host ?? 'localhost') : 'localhost';
@@ -225,8 +225,8 @@ export class DataSource {
       return;
     }
 
-    if (documentClient) {
-      this.#instance.aws.ddb.set(documentClient as unknown as DynamoDB);
+    if (client) {
+      this.#instance.aws.ddb.set(client as unknown as DynamoDB);
     }
   }
 

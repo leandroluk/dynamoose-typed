@@ -139,7 +139,7 @@ import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 
 const dataSource = new DataSource({
   entities: [UserTable, OrderTable],
-  documentClient: new DynamoDBClient({ region: 'us-east-1' }),
+  client: new DynamoDBClient({ region: 'us-east-1' }),
 });
 
 await dataSource.initialize();
@@ -163,21 +163,21 @@ When multiple environments share a single DynamoDB account, you can isolate them
 // production: @DynamoTable('users') → 'prod_users'
 const dataSource = new DataSource({
   entities: [UserTable, OrderTable],
-  documentClient: new DynamoDBClient({ region: 'us-east-1' }),
+  client: new DynamoDBClient({ region: 'us-east-1' }),
   table: { prefix: 'prod_' },
 });
 
 // staging: @DynamoTable('users') → 'staging_users'
 const stagingDs = new DataSource({
   entities: [UserTable],
-  documentClient: new DynamoDBClient({ region: 'us-east-1' }),
+  client: new DynamoDBClient({ region: 'us-east-1' }),
   table: { prefix: 'staging_' },
 });
 
 // both prefix and suffix: @DynamoTable('users') → 'prod_users_v2'
 const ds = new DataSource({
   entities: [UserTable],
-  documentClient: new DynamoDBClient({ region: 'us-east-1' }),
+  client: new DynamoDBClient({ region: 'us-east-1' }),
   table: { prefix: 'prod_', suffix: '_v2' },
 });
 ```
@@ -283,19 +283,19 @@ await dataSource.transaction(async (tx) => {
 
 ## Attribute decorators reference
 
-| Decorator                     | DynamoDB type | Notes                                                                                      |
-| ----------------------------- | ------------- | ------------------------------------------------------------------------------------------ |
-| `@StringAttribute`            | S             | Supports `hashKey`, `rangeKey`, `minLength`, `maxLength`, `trim`, `lowercase`, `uppercase` |
-| `@NumberAttribute`            | N             | Supports `min`, `max`                                                                      |
-| `@BooleanAttribute`           | BOOL          |                                                                                            |
-| `@DateAttribute`              | S / N         | `format: 'epoch'` (default) or `'iso'`; `ttl: true` stores epoch **seconds** with auto transforms |
-| `@CreateDateAttribute`        | S / N         | Set once on insert, never updated; `format: 'epoch'` (default) or `'iso'`                 |
-| `@UpdateDateAttribute`        | S / N         | Updated on every save/update; `format: 'epoch'` (default) or `'iso'`                      |
+| Decorator                     | DynamoDB type | Notes                                                                                              |
+| ----------------------------- | ------------- | -------------------------------------------------------------------------------------------------- |
+| `@StringAttribute`            | S             | Supports `hashKey`, `rangeKey`, `minLength`, `maxLength`, `trim`, `lowercase`, `uppercase`         |
+| `@NumberAttribute`            | N             | Supports `min`, `max`                                                                              |
+| `@BooleanAttribute`           | BOOL          |                                                                                                    |
+| `@DateAttribute`              | S / N         | `format: 'epoch'` (default) or `'iso'`; `ttl: true` stores epoch **seconds** with auto transforms  |
+| `@CreateDateAttribute`        | S / N         | Set once on insert, never updated; `format: 'epoch'` (default) or `'iso'`                          |
+| `@UpdateDateAttribute`        | S / N         | Updated on every save/update; `format: 'epoch'` (default) or `'iso'`                               |
 | `@DeleteDateAttribute`        | S / N         | Set by `delete()`, cleared by `restore()`; `index: true` enables sparse-GSI `count()` optimization |
-| `@NestedAttribute(() => Doc)` | M             | Doc must be decorated with `@DynamoDocument`                                               |
-| `@ArrayAttribute(() => Type)` | L             | Primitives or `@DynamoDocument` instances                                                  |
-| `@SetAttribute(() => Type)`   | SS / NS       | Must be a `Set<string>` or `Set<number>`                                                   |
-| `@Attribute(options)`         | any           | Raw Dynamoose attribute passthrough                                                        |
+| `@NestedAttribute(() => Doc)` | M             | Doc must be decorated with `@DynamoDocument`                                                       |
+| `@ArrayAttribute(() => Type)` | L             | Primitives or `@DynamoDocument` instances                                                          |
+| `@SetAttribute(() => Type)`   | SS / NS       | Must be a `Set<string>` or `Set<number>`                                                           |
+| `@Attribute(options)`         | any           | Raw Dynamoose attribute passthrough                                                                |
 
 All decorators accept an optional first argument `alias` (string) to map a TypeScript property name to a different DynamoDB attribute name:
 
@@ -348,11 +348,11 @@ const activeCount = await repo.count();
 const totalCount = await repo.count({ withDeleted: true });
 ```
 
-| Condition | Strategy | Item bodies |
-|---|---|---|
-| `withDeleted: true` or no soft-delete | `Select: COUNT` | No |
-| Soft-delete + GSI (`index: true`) | 2× `Select: COUNT` (total − GSI) | No |
-| Soft-delete, no GSI | Full scan + client-side filter | Yes |
+| Condition                             | Strategy                         | Item bodies |
+| ------------------------------------- | -------------------------------- | ----------- |
+| `withDeleted: true` or no soft-delete | `Select: COUNT`                  | No          |
+| Soft-delete + GSI (`index: true`)     | 2× `Select: COUNT` (total − GSI) | No          |
+| Soft-delete, no GSI                   | Full scan + client-side filter   | Yes         |
 
 ## Hooks
 

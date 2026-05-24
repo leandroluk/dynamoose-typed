@@ -15,7 +15,7 @@ import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 // @DynamoTable('orders') → 'prod_orders'
 const dataSource = new DataSource({
   entities: [UserTable, OrderTable],
-  documentClient: new DynamoDBClient({ region: 'us-east-1' }),
+  client: new DynamoDBClient({ region: 'us-east-1' }),
   table: { prefix: 'prod_' },
 });
 
@@ -24,10 +24,10 @@ await dataSource.initialize();
 
 ## Options
 
-| Option | Type | Description |
-|--------|------|-------------|
+| Option         | Type                | Description                    |
+| -------------- | ------------------- | ------------------------------ |
 | `table.prefix` | `string` (optional) | Prepended to every table name. |
-| `table.suffix` | `string` (optional) | Appended to every table name. |
+| `table.suffix` | `string` (optional) | Appended to every table name.  |
 
 Both options can be used together. If neither is set, table names are used as declared in `@DynamoTable`.
 
@@ -40,7 +40,7 @@ const env = process.env.NODE_ENV; // 'prod' | 'staging' | 'dev'
 
 const dataSource = new DataSource({
   entities: [UserTable, OrderTable],
-  documentClient: new DynamoDBClient({ region: 'us-east-1' }),
+  client: new DynamoDBClient({ region: 'us-east-1' }),
   table: { prefix: `${env}_` },
 });
 // prod_users, staging_users, dev_users
@@ -51,7 +51,7 @@ const dataSource = new DataSource({
 ```typescript
 const dataSource = new DataSource({
   entities: [UserTable],
-  documentClient: new DynamoDBClient({ region: 'us-east-1' }),
+  client: new DynamoDBClient({ region: 'us-east-1' }),
   table: { suffix: '_v2' },
 });
 // users_v2
@@ -62,7 +62,7 @@ const dataSource = new DataSource({
 ```typescript
 const dataSource = new DataSource({
   entities: [UserTable],
-  documentClient: new DynamoDBClient({ region: 'us-east-1' }),
+  client: new DynamoDBClient({ region: 'us-east-1' }),
   table: { prefix: 'prod_', suffix: '_v2' },
 });
 // prod_users_v2
@@ -86,10 +86,10 @@ expect(repo.tableName).toBe('prod_users');
 
 ## Behavior reference
 
-| `table` option | `@DynamoTable('users')` resolves to |
-|----------------|--------------------------------------|
-| `undefined` (omitted) | `users` |
-| `{ prefix: 'prod_' }` | `prod_users` |
-| `{ suffix: '_v2' }` | `users_v2` |
-| `{ prefix: 'prod_', suffix: '_v2' }` | `prod_users_v2` |
-| `{ prefix: '', suffix: '' }` | `users` |
+| `table` option                       | `@DynamoTable('users')` resolves to |
+| ------------------------------------ | ----------------------------------- |
+| `undefined` (omitted)                | `users`                             |
+| `{ prefix: 'prod_' }`                | `prod_users`                        |
+| `{ suffix: '_v2' }`                  | `users_v2`                          |
+| `{ prefix: 'prod_', suffix: '_v2' }` | `prod_users_v2`                     |
+| `{ prefix: '', suffix: '' }`         | `users`                             |

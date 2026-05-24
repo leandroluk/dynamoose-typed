@@ -3,7 +3,7 @@
  *
  * data-source.ts          – destroy, isInitialized, manager guard, lazyInit,
  *                           #getModel throw, #assertInitialized throw,
- *                           local option branches, documentClient branch,
+ *                           local option branches, client branch,
  *                           already-initialized early return, transaction
  * dynamo-table.decorator  – the bare DynamoTable(tableName) decorator path
  * internal-model.ts       – runHook (fn called), normalize(null/undefined),
@@ -519,9 +519,9 @@ describe('DataSource', () => {
     expect(localDataSource.isInitialized).toBe(true);
   });
 
-  it('configureClient with documentClient sets the client', async () => {
+  it('configureClient with client sets the client', async () => {
     const fakeDynamoDBClient = {} as DynamoDBClient;
-    const clientDataSource = new DataSource({entities: [UserTable], documentClient: fakeDynamoDBClient});
+    const clientDataSource = new DataSource({entities: [UserTable], client: fakeDynamoDBClient});
     await clientDataSource.initialize();
     expect(clientDataSource.isInitialized).toBe(true);
   });
