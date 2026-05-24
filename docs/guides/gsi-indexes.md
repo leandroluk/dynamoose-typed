@@ -117,3 +117,50 @@ const activeNoGsi = await repo.count();
 ## Infrastructure note
 
 Declaring `index: true` adds the GSI to the Dynamoose schema definition. DynamoDB table provisioning (creating the actual GSI) is handled by Dynamoose's table management or your own IaC (CDK, Terraform, etc.) — `dynamoose-typed` only controls what goes into the schema.
+
+## Composite GSI (with range key)
+
+Pass an `IndexOptions` object to `index` to configure a composite GSI:
+
+```typescript
+import { IndexOptions } from 'dynamoose-typed';
+
+@DynamoTable('orders')
+class OrderTable {
+  @StringAttribute({ hashKey: true })
+  id!: string;
+
+  // Composite GSI: hash=tenantId, range=created_at
+  @StringAttribute({
+    index: { name: 'byTenantAndDate', rangeKey: 'createdAt' }
+  })
+  tenantId!: string;
+
+  @CreateDateAttribute('created_at')
+  createdAt!: Date;
+}
+```
+
+`rangeKey` is the **TypeScript property name** (`'createdAt'`). The library resolves it to the DynamoDB attribute name (`'created_at'`) using the alias map automatically.
+
+### IndexOptions reference
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `name` | `string` | `${attributeName}GlobalIndex` | Custom GSI name |
+| `rangeKey` | `string` | `undefined` | TypeScript property name of the sort key |
+| `project` | `boolean \| string[]` | `true` | `true` = ALL, `false` = KEYS_ONLY, `string[]` = INCLUDE |
+
+### Projection
+
+```typescript
+// KEYS_ONLY — only hash + range keys projected into GSI
+@StringAttribute({ index: { project: false } })
+tenantId!: string;
+
+// INCLUDE — specific attributes projected
+@StringAttribute({ index: { project: ['id', 'name', 'status'] } })
+tenantId!: string;
+```
+
+`index: true` is equivalent to `index: { project: true }` — both project ALL attributes.

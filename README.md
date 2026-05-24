@@ -37,7 +37,7 @@ Dynamoose is a great library, but its TypeScript story is painfully lacking. The
 - Decorator-based schema definition (`@DynamoTable`, `@StringAttribute`, `@NestedAttribute`, …)
 - Typed `Repository<T>` and `EntityManager` for all CRUD operations
 - Automatic `created_at` / `updated_at` / soft-delete (`deleted_at`) timestamps
-- GSI support via `index: true` on any attribute decorator
+- GSI support via `index: true` or `index: { name, rangeKey, project }` on any attribute decorator
 - `count()` sparse-GSI optimization — two `Select: COUNT` scans instead of fetching item bodies
 - Atomic transactions via `dataSource.transaction()`
 - Batch operations (`batchSave`, `batchGet`, `batchDelete`)
