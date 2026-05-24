@@ -39,7 +39,7 @@ export type {
   WriteOptions,
 } from './types/core.types';
 
-export type {TableOptions, DocumentOptions} from './types/meta.types';
+export type {TableOptions, DocumentOptions, ThroughputOptions} from './types/meta.types';
 
 export type {
   StringAttributeOptions,
