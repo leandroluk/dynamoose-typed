@@ -26,18 +26,18 @@ export interface DataSourceOptions {
    * Can be set to `true` to use the default `http://localhost:8000`, or an object specifying host/port configuration.
    */
   local?:
-  | boolean
-  | {
-    /**
-     * Hostname of the local DynamoDB server. Defaults to `'localhost'`.
-     */
-    host?: string;
+    | boolean
+    | {
+        /**
+         * Hostname of the local DynamoDB server. Defaults to `'localhost'`.
+         */
+        host?: string;
 
-    /**
-     * Port of the local DynamoDB server. Defaults to `8000`.
-     */
-    port?: number;
-  };
+        /**
+         * Port of the local DynamoDB server. Defaults to `8000`.
+         */
+        port?: number;
+      };
 
   /**
    * Global table name transformations applied to all registered entities at initialization time.
