@@ -1036,6 +1036,16 @@ describe('Branch coverage — final gaps', () => {
     expect(dynamooseModelSpy.mock.calls).toHaveLength(1);
   });
 
+  it('DataSource with global throughput passes throughput to Table constructor', async () => {
+    vi.spyOn(dynamoose, 'model').mockReturnValue(makeMockDynamooseModel() as any);
+    const dataSource = new DataSource({
+      entities: [UserTable],
+      table: {throughput: 'ON_DEMAND'},
+    });
+    await dataSource.initialize();
+    expect(dataSource.isInitialized).toBe(true);
+  });
+
   it('@Attribute without alias uses propertyKey as attributeName', () => {
     @DynamoTable('attr-no-alias')
     class AttrNoAlias {

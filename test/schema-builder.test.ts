@@ -430,4 +430,15 @@ describe('composite GSI (index as object)', () => {
     const field = schema.definition['tenantId'] as {index: {name: string; rangeKey: string; project: boolean}};
     expect(field.index).toEqual({name: 'fullIndex', rangeKey: 'status', project: true});
   });
+
+  it('falls back to rangeKey string when property not in aliasMap at all', () => {
+    @DynamoTable('gsi-rangekey-ghost')
+    class GsiRangeKeyGhostTable {
+      @StringAttribute({hashKey: true}) id!: string;
+      @StringAttribute({index: {rangeKey: 'ghostProp'}}) tenantId!: string;
+    }
+    const schema = resolveTableSchema(GsiRangeKeyGhostTable);
+    const field = schema.definition['tenantId'] as {index: {rangeKey: string}};
+    expect(field.index).toEqual({rangeKey: 'ghostProp'});
+  });
 });
