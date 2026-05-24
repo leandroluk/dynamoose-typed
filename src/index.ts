@@ -50,4 +50,5 @@ export type {
   ArrayAttributeOptions,
   SetAttributeOptions,
   VersionAttributeOptions,
+  IndexOptions,
 } from './types/attribute.types';

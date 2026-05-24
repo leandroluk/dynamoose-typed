@@ -349,3 +349,85 @@ describe('resolveTableSchema', () => {
     expect(() => resolveTableSchema(NoKey)).toThrow('hashKey');
   });
 });
+
+describe('composite GSI (index as object)', () => {
+  it('preserves index: true behavior unchanged', () => {
+    @DynamoTable('gsi-bool')
+    class GsiBoolTable {
+      @StringAttribute({hashKey: true}) id!: string;
+      @StringAttribute({index: true}) email!: string;
+    }
+    const schema = resolveTableSchema(GsiBoolTable);
+    const field = schema.definition['email'] as {index: unknown};
+    expect(field.index).toBe(true);
+  });
+
+  it('sets custom GSI name via index object', () => {
+    @DynamoTable('gsi-name')
+    class GsiNameTable {
+      @StringAttribute({hashKey: true}) id!: string;
+      @StringAttribute({index: {name: 'myCustomIndex'}}) tenantId!: string;
+    }
+    const schema = resolveTableSchema(GsiNameTable);
+    const field = schema.definition['tenantId'] as {index: {name: string}};
+    expect(field.index).toEqual({name: 'myCustomIndex'});
+  });
+
+  it('resolves rangeKey from TypeScript property name to DynamoDB attribute name', () => {
+    @DynamoTable('gsi-rangekey')
+    class GsiRangeKeyTable {
+      @StringAttribute({hashKey: true}) id!: string;
+      @StringAttribute({index: {name: 'byTenantAndDate', rangeKey: 'createdAt'}}) tenantId!: string;
+      @CreateDateAttribute('created_at') createdAt!: Date;
+    }
+    const schema = resolveTableSchema(GsiRangeKeyTable);
+    const field = schema.definition['tenantId'] as {index: {name: string; rangeKey: string}};
+    expect(field.index).toEqual({name: 'byTenantAndDate', rangeKey: 'created_at'});
+  });
+
+  it('falls back to property name when rangeKey has no alias', () => {
+    @DynamoTable('gsi-rangekey-noalias')
+    class GsiRangeKeyNoAliasTable {
+      @StringAttribute({hashKey: true}) id!: string;
+      @StringAttribute({index: {rangeKey: 'status'}}) tenantId!: string;
+      @StringAttribute() status!: string;
+    }
+    const schema = resolveTableSchema(GsiRangeKeyNoAliasTable);
+    const field = schema.definition['tenantId'] as {index: {rangeKey: string}};
+    expect(field.index).toEqual({rangeKey: 'status'});
+  });
+
+  it('sets project: false (KEYS_ONLY)', () => {
+    @DynamoTable('gsi-project-false')
+    class GsiProjectFalseTable {
+      @StringAttribute({hashKey: true}) id!: string;
+      @StringAttribute({index: {project: false}}) tenantId!: string;
+    }
+    const schema = resolveTableSchema(GsiProjectFalseTable);
+    const field = schema.definition['tenantId'] as {index: {project: boolean}};
+    expect(field.index).toEqual({project: false});
+  });
+
+  it('sets project as string array (INCLUDE)', () => {
+    @DynamoTable('gsi-project-array')
+    class GsiProjectArrayTable {
+      @StringAttribute({hashKey: true}) id!: string;
+      @StringAttribute({index: {project: ['id', 'name']}}) tenantId!: string;
+    }
+    const schema = resolveTableSchema(GsiProjectArrayTable);
+    const field = schema.definition['tenantId'] as {index: {project: string[]}};
+    expect(field.index).toEqual({project: ['id', 'name']});
+  });
+
+  it('sets all three fields together', () => {
+    @DynamoTable('gsi-all-fields')
+    class GsiAllFieldsTable {
+      @StringAttribute({hashKey: true}) id!: string;
+      @StringAttribute({index: {name: 'fullIndex', rangeKey: 'status', project: true}}) tenantId!: string;
+      @StringAttribute() status!: string;
+    }
+    const schema = resolveTableSchema(GsiAllFieldsTable);
+    const field = schema.definition['tenantId'] as {index: {name: string; rangeKey: string; project: boolean}};
+    expect(field.index).toEqual({name: 'fullIndex', rangeKey: 'status', project: true});
+  });
+});

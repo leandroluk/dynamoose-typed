@@ -1,6 +1,38 @@
 import type {DateFormat, LazyType, TransformOptions} from './core.types';
 
 /**
+ * Configuration for a DynamoDB Global Secondary Index.
+ * Passed as the `index` option on any attribute decorator.
+ *
+ * @example
+ * // Composite GSI with custom name and range key
+ * @StringAttribute({ index: { name: 'byTenantAndDate', rangeKey: 'createdAt' } })
+ * tenantId!: string;
+ */
+export interface IndexOptions {
+  /**
+   * Custom GSI name.
+   * Default when omitted: `${attributeName}GlobalIndex`
+   */
+  name?: string;
+
+  /**
+   * TypeScript property name of the range (sort) key for this GSI.
+   * Resolved to the DynamoDB attribute name via alias map at schema-build time.
+   * When the property has no alias, the property name is used as-is.
+   */
+  rangeKey?: string;
+
+  /**
+   * Projection for this GSI.
+   * - `true` (default) — ALL attributes projected
+   * - `false` — KEYS_ONLY
+   * - `string[]` — INCLUDE: the listed attribute names
+   */
+  project?: boolean | string[];
+}
+
+/**
  * Base options applicable to all types of entity attributes in dynamoose-typed.
  */
 export interface BaseAttributeOptions {
@@ -27,10 +59,22 @@ export interface BaseAttributeOptions {
   validate?: (value: unknown) => boolean | Promise<boolean>;
 
   /**
-   * If true, creates a DynamoDB Global Secondary Index (GSI) on this attribute.
-   * The default GSI name is `${attributeName}GlobalIndex`.
+   * If true, creates a DynamoDB Global Secondary Index (GSI) on this attribute
+   * with default settings (name: `${attributeName}GlobalIndex`, projection: ALL).
+   *
+   * Pass an {@link IndexOptions} object to configure name, range key, or projection.
+   *
+   * @example
+   * // Simple GSI (boolean)
+   * @StringAttribute({ index: true })
+   * email!: string;
+   *
+   * @example
+   * // Composite GSI
+   * @StringAttribute({ index: { name: 'byTenantAndDate', rangeKey: 'createdAt' } })
+   * tenantId!: string;
    */
-  index?: boolean;
+  index?: boolean | IndexOptions;
 
   /**
    * Any additional Dynamoose attribute configuration settings.
