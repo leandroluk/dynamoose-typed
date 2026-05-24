@@ -1,14 +1,37 @@
 import {getDocumentMeta, getTableMeta} from '#/decorators/metadata.registry';
-import type {DocumentMeta, StoredAttributeMeta} from '#/types';
+import type {DocumentMeta, IndexOptions, StoredAttributeMeta} from '#/types';
 
 function fmtToStorageType(fmt: 'iso' | 'epoch' | 'ttl' | undefined): StringConstructor | NumberConstructor {
   return fmt === 'iso' ? String : Number;
 }
 
 /**
+ * Converts an `index` option value into the Dynamoose-compatible index definition.
+ * Resolves TypeScript property name rangeKey to DynamoDB attribute name via aliasMap.
+ */
+function buildIndexEntry(
+  indexOpt: boolean | IndexOptions,
+  aliasMap: Record<string, string>
+): true | Record<string, unknown> {
+  if (typeof indexOpt === 'boolean') {
+    return true;
+  }
+  const idx = indexOpt;
+  const resolvedRangeKey = idx.rangeKey ? (aliasMap[idx.rangeKey] ?? idx.rangeKey) : undefined;
+  const indexDef: Record<string, unknown> = {};
+  if (idx.name !== undefined) indexDef['name'] = idx.name;
+  if (resolvedRangeKey !== undefined) indexDef['rangeKey'] = resolvedRangeKey;
+  if (idx.project !== undefined) indexDef['project'] = idx.project;
+  return indexDef;
+}
+
+/**
  * Recursively build the raw schema definition for a document/table class.
  */
-function buildDefinition(attributes: StoredAttributeMeta[]): Record<string, unknown> {
+function buildDefinition(
+  attributes: StoredAttributeMeta[],
+  aliasMap: Record<string, string>
+): Record<string, unknown> {
   const def: Record<string, unknown> = {};
 
   for (const attr of attributes) {
@@ -67,7 +90,7 @@ function buildDefinition(attributes: StoredAttributeMeta[]): Record<string, unkn
           entry['set'] = opts['set'];
         }
         if (opts['index']) {
-          entry['index'] = true;
+          entry['index'] = buildIndexEntry(opts['index'] as boolean | IndexOptions, aliasMap);
         }
         def[key] = entry;
         break;
@@ -103,7 +126,7 @@ function buildDefinition(attributes: StoredAttributeMeta[]): Record<string, unkn
           entry['set'] = opts['set'];
         }
         if (opts['index']) {
-          entry['index'] = true;
+          entry['index'] = buildIndexEntry(opts['index'] as boolean | IndexOptions, aliasMap);
         }
         def[key] = entry;
         break;
@@ -122,7 +145,7 @@ function buildDefinition(attributes: StoredAttributeMeta[]): Record<string, unkn
           entry['set'] = opts['set'];
         }
         if (opts['index']) {
-          entry['index'] = true;
+          entry['index'] = buildIndexEntry(opts['index'] as boolean | IndexOptions, aliasMap);
         }
         def[key] = entry;
         break;
@@ -148,7 +171,7 @@ function buildDefinition(attributes: StoredAttributeMeta[]): Record<string, unkn
           }
         }
         if (opts['index']) {
-          entry['index'] = true;
+          entry['index'] = buildIndexEntry(opts['index'] as boolean | IndexOptions, aliasMap);
         }
         def[key] = entry;
         break;
@@ -173,7 +196,7 @@ function buildDefinition(attributes: StoredAttributeMeta[]): Record<string, unkn
           entry['set'] = opts['set'];
         }
         if (opts['index']) {
-          entry['index'] = true;
+          entry['index'] = buildIndexEntry(opts['index'] as boolean | IndexOptions, aliasMap);
         }
         def[key] = entry;
         break;
@@ -190,7 +213,7 @@ function buildDefinition(attributes: StoredAttributeMeta[]): Record<string, unkn
           type: Object,
           required: opts['required'],
           default: opts['default'],
-          schema: buildDefinition(nestedAttrs),
+          schema: buildDefinition(nestedAttrs, aliasMap),
         };
         if (opts['get']) {
           entry['get'] = opts['get'];
@@ -199,7 +222,7 @@ function buildDefinition(attributes: StoredAttributeMeta[]): Record<string, unkn
           entry['set'] = opts['set'];
         }
         if (opts['index']) {
-          entry['index'] = true;
+          entry['index'] = buildIndexEntry(opts['index'] as boolean | IndexOptions, aliasMap);
         }
         def[key] = entry;
         break;
@@ -216,7 +239,7 @@ function buildDefinition(attributes: StoredAttributeMeta[]): Record<string, unkn
           required: opts['required'],
           default: opts['default'],
           schema: isDocument
-            ? [{type: Object, schema: buildDefinition(getDocumentMeta(ElemClass)!.attributes)}]
+            ? [{type: Object, schema: buildDefinition(getDocumentMeta(ElemClass)!.attributes, aliasMap)}]
             : [{type: ElemClass}],
         };
         if (opts['get']) {
@@ -226,7 +249,7 @@ function buildDefinition(attributes: StoredAttributeMeta[]): Record<string, unkn
           entry['set'] = opts['set'];
         }
         if (opts['index']) {
-          entry['index'] = true;
+          entry['index'] = buildIndexEntry(opts['index'] as boolean | IndexOptions, aliasMap);
         }
         def[key] = entry;
         break;
@@ -250,7 +273,7 @@ function buildDefinition(attributes: StoredAttributeMeta[]): Record<string, unkn
           entry['set'] = opts['set'];
         }
         if (opts['index']) {
-          entry['index'] = true;
+          entry['index'] = buildIndexEntry(opts['index'] as boolean | IndexOptions, aliasMap);
         }
         def[key] = entry;
         break;
@@ -329,15 +352,15 @@ export function resolveTableSchema(entityClass: new () => unknown): ResolvedSche
     );
   }
 
-  const definition = buildDefinition(meta.attributes);
-
-  // Build alias maps
+  // Build alias maps first (needed by buildDefinition for index rangeKey resolution)
   const aliasMap: Record<string, string> = {};
   const reverseAliasMap: Record<string, string> = {};
   for (const attr of meta.attributes) {
     aliasMap[attr.propertyKey] = attr.attributeName;
     reverseAliasMap[attr.attributeName] = attr.propertyKey;
   }
+
+  const definition = buildDefinition(meta.attributes, aliasMap);
 
   const {_hooks, ...tableOptions} = meta.options as Record<string, unknown>;
 
