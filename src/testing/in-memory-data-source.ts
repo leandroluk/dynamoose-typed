@@ -1,5 +1,5 @@
 import {resolveTableSchema} from '#/schema';
-import type {AnyRecord, CountOptions, FindOptions, PaginatedResult, Projected, SelectMap, WriteOptions} from '#/types';
+import type {AnyRecord, CountOptions, FindOptions, PaginatedResult, Projected, SelectMap, ThroughputOptions, WriteOptions} from '#/types';
 import {InMemoryRepository} from './in-memory-repository';
 
 /**
@@ -22,7 +22,10 @@ import {InMemoryRepository} from './in-memory-repository';
 export class InMemoryDataSource {
   readonly #repos = new Map<new () => unknown, InMemoryRepository<AnyRecord>>();
 
-  constructor(options: {entities: (new () => unknown)[]; table?: {prefix?: string; suffix?: string}}) {
+  constructor(options: {
+    entities: (new () => unknown)[];
+    table?: {prefix?: string; suffix?: string; throughput?: ThroughputOptions};
+  }) {
     for (const entityClass of options.entities) {
       const schema = resolveTableSchema(entityClass);
       const prefix = options.table?.prefix ?? '';

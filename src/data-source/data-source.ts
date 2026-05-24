@@ -2,7 +2,7 @@ import {EntityManager, TransactionCollector, TransactionManager} from '#/manager
 import {InternalModel} from '#/model/internal-model';
 import {Repository} from '#/repository/repository';
 import {resolveTableSchema} from '#/schema';
-import type {AnyItem} from '#/types';
+import type {AnyItem, ThroughputOptions} from '#/types';
 import {type DynamoDB, type DynamoDBClient} from '@aws-sdk/client-dynamodb';
 import dynamoose, {Instance} from 'dynamoose';
 
@@ -63,6 +63,15 @@ export interface DataSourceOptions {
      * E.g. `'_v2'` transforms `'users'` → `'users_v2'`.
      */
     suffix?: string;
+
+    /**
+     * Default DynamoDB billing mode applied to all registered entities.
+     * Overridden per-entity via `@DynamoTable({ throughput: ... })`.
+     *
+     * @example
+     * table: { throughput: 'ON_DEMAND' }
+     */
+    throughput?: ThroughputOptions;
   };
 }
 
@@ -243,11 +252,20 @@ export class DataSource {
     const suffix = this.#options.table?.suffix ?? '';
     const tableName = `${prefix}${resolved.tableName}${suffix}`;
 
+    const tableThroughput =
+      (resolved.tableOptions['throughput'] as ThroughputOptions | undefined) ??
+      this.#options.table?.throughput;
+
+    const tableOptions = {
+      ...resolved.tableOptions,
+      ...(tableThroughput !== undefined ? {throughput: tableThroughput} : {}),
+    };
+
     // @ts-expect-error - Dynamoose v4 type alignment
     const dSchema = new dynamoose.Schema(resolved.definition, resolved.schemaOptions);
     const dModel = dynamoose.model(tableName, dSchema);
 
-    new this.#instance.Table(tableName, [dModel], resolved.tableOptions);
+    new this.#instance.Table(tableName, [dModel], tableOptions);
 
     this.#models.set(
       entityClass as new () => unknown,
