@@ -16,6 +16,7 @@
   - [Optimistic locking](README.md#optimistic-locking)
   - [GSI indexes](guides/gsi-indexes.md)
   - [Table prefix/suffix](guides/table-name-prefix-suffix.md)
+  - [Throughput](guides/throughput.md)
 
 - **Reference**
   - [Attribute decorators](README.md#attribute-decorators-reference)

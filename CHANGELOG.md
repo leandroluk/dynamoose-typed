@@ -5,6 +5,7 @@
 ### Added
 
 - **Table name prefix/suffix** — `DataSourceOptions` and `InMemoryDataSource` now accept a `table?: { prefix?: string; suffix?: string }` option. When set, the prefix/suffix is applied to every registered entity's table name at initialization time. Useful for isolating environments (prod, staging, dev) within a shared DynamoDB account. Example: `@DynamoTable('users')` with `table: { prefix: 'prod_' }` resolves to `prod_users`.
+- **Throughput configuration** — `@DynamoTable` options now accept `throughput: 'ON_DEMAND' | number | { read, write }` to set the DynamoDB billing mode per table. A global default can also be set via `DataSourceOptions.table.throughput`, which is overridden by per-table settings.
 
 ## [1.1.0] - 2026-05-21
 

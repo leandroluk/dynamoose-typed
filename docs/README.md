@@ -47,6 +47,7 @@ Dynamoose is a great library, but its TypeScript story is painfully lacking. The
 - TTL support via `@DateAttribute({ ttl: true })` — stores epoch seconds and propagates to DynamoDB's `timeToLive`
 - `InMemoryDataSource` for fast, zero-infrastructure unit tests
 - Global table name prefix/suffix — isolate environments via `DataSourceOptions.table`
+- Throughput configuration — `ON_DEMAND` or provisioned capacity via `@DynamoTable` or `DataSourceOptions.table`
 - 100% statement / branch / function coverage
 
 ## Requirements
@@ -194,6 +195,29 @@ const ds = new InMemoryDataSource({
   table: { prefix: 'prod_' },
 });
 ```
+
+## Throughput configuration
+
+Set the DynamoDB billing mode per table or globally:
+
+```typescript
+// per-table — ON_DEMAND (pay-per-request)
+@DynamoTable('users', { throughput: 'ON_DEMAND' })
+class UserTable { ... }
+
+// per-table — provisioned with separate read/write
+@DynamoTable('orders', { throughput: { read: 10, write: 5 } })
+class OrderTable { ... }
+
+// global default for all tables (overridden per-table if set)
+const dataSource = new DataSource({
+  entities: [UserTable, OrderTable],
+  client: new DynamoDBClient({ region: 'us-east-1' }),
+  table: { throughput: 'ON_DEMAND' },
+});
+```
+
+Per-table `throughput` takes precedence over the global default. When neither is set, Dynamoose's default applies (`read: 5, write: 5`).
 
 ## Repository
 
