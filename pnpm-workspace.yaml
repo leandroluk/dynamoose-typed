@@ -1,9 +1,4 @@
 allowBuilds:
   '@swc/core': true
-  'esbuild': true
-  'lefthook': true
-pnpm:
-  onlyBuiltDependencies:
-    - '@swc/core'
-    - 'esbuild'
-    - 'lefthook'
+  esbuild: true
+  lefthook: true
