@@ -19,19 +19,22 @@ function buildIndexEntry(
   const idx = indexOpt;
   const resolvedRangeKey = idx.rangeKey ? (aliasMap[idx.rangeKey] ?? idx.rangeKey) : undefined;
   const indexDef: Record<string, unknown> = {};
-  if (idx.name !== undefined) indexDef['name'] = idx.name;
-  if (resolvedRangeKey !== undefined) indexDef['rangeKey'] = resolvedRangeKey;
-  if (idx.project !== undefined) indexDef['project'] = idx.project;
+  if (idx.name !== undefined) {
+    indexDef['name'] = idx.name;
+  }
+  if (resolvedRangeKey !== undefined) {
+    indexDef['rangeKey'] = resolvedRangeKey;
+  }
+  if (idx.project !== undefined) {
+    indexDef['project'] = idx.project;
+  }
   return indexDef;
 }
 
 /**
  * Recursively build the raw schema definition for a document/table class.
  */
-function buildDefinition(
-  attributes: StoredAttributeMeta[],
-  aliasMap: Record<string, string>
-): Record<string, unknown> {
+function buildDefinition(attributes: StoredAttributeMeta[], aliasMap: Record<string, string>): Record<string, unknown> {
   const def: Record<string, unknown> = {};
 
   for (const attr of attributes) {

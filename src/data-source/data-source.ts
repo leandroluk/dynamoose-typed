@@ -255,7 +255,9 @@ export class DataSource {
     const perEntityThroughput = resolved.tableOptions['throughput'] as ThroughputOptions | undefined;
     const resolvedThroughput = perEntityThroughput ?? this.#options.table?.throughput;
 
-    const {throughput: _drop, ...baseTableOptions} = resolved.tableOptions as Record<string, unknown> & {throughput?: ThroughputOptions};
+    const {throughput: _drop, ...baseTableOptions} = resolved.tableOptions as Record<string, unknown> & {
+      throughput?: ThroughputOptions;
+    };
     const tableOptions = {
       ...baseTableOptions,
       ...(resolvedThroughput !== undefined ? {throughput: resolvedThroughput} : {}),
