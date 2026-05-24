@@ -26,6 +26,8 @@
 
 A strongly-typed, decorator-driven wrapper around [Dynamoose v4](https://dynamoosejs.com/) — the DynamoDB ODM for Node.js.
 
+📚 **[Read the Documentation](https://leandroluk.github.io/dynamoose-typed)**
+
 ## Why this exists
 
 Dynamoose is a great library, but its TypeScript story is painfully lacking. The return types of `model()` are overloaded to the point where nothing is inferred correctly, every operation resolves to `any`, and the schema definition is a plain object with no type-safety. You end up fighting the type system instead of relying on it.
