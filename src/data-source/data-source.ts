@@ -252,13 +252,13 @@ export class DataSource {
     const suffix = this.#options.table?.suffix ?? '';
     const tableName = `${prefix}${resolved.tableName}${suffix}`;
 
-    const tableThroughput =
-      (resolved.tableOptions['throughput'] as ThroughputOptions | undefined) ??
-      this.#options.table?.throughput;
+    const perEntityThroughput = resolved.tableOptions['throughput'] as ThroughputOptions | undefined;
+    const resolvedThroughput = perEntityThroughput ?? this.#options.table?.throughput;
 
+    const {throughput: _drop, ...baseTableOptions} = resolved.tableOptions as Record<string, unknown> & {throughput?: ThroughputOptions};
     const tableOptions = {
-      ...resolved.tableOptions,
-      ...(tableThroughput !== undefined ? {throughput: tableThroughput} : {}),
+      ...baseTableOptions,
+      ...(resolvedThroughput !== undefined ? {throughput: resolvedThroughput} : {}),
     };
 
     // @ts-expect-error - Dynamoose v4 type alignment

@@ -1,5 +1,14 @@
 import {resolveTableSchema} from '#/schema';
-import type {AnyRecord, CountOptions, FindOptions, PaginatedResult, Projected, SelectMap, ThroughputOptions, WriteOptions} from '#/types';
+import type {
+  AnyRecord,
+  CountOptions,
+  FindOptions,
+  PaginatedResult,
+  Projected,
+  SelectMap,
+  ThroughputOptions,
+  WriteOptions,
+} from '#/types';
 import {InMemoryRepository} from './in-memory-repository';
 
 /**
@@ -24,7 +33,12 @@ export class InMemoryDataSource {
 
   constructor(options: {
     entities: (new () => unknown)[];
-    table?: {prefix?: string; suffix?: string; throughput?: ThroughputOptions};
+    table?: {
+      prefix?: string;
+      suffix?: string;
+      /** Accepted for API parity with {@link DataSourceOptions}. Has no effect in-memory. */
+      throughput?: ThroughputOptions;
+    };
   }) {
     for (const entityClass of options.entities) {
       const schema = resolveTableSchema(entityClass);
