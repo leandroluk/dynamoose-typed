@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.1] - 2026-05-26
+
+### Fixed
+
+- **`DataSource` global instance alignment** — removed the isolated `new Instance()` that caused `TypeError: instance.aws.ddb(...)[method] is not a function` at table-creation time. `DataSource` now uses the global Dynamoose instance consistently for `Schema`, `model`, `Table`, and `aws.ddb` calls.
+- **`DataSourceOptions.client` type** — narrowed from `DynamoDB | DynamoDBClient` to `DynamoDB` only. Dynamoose requires the full `DynamoDB` client (which exposes `createTable` etc. directly), not the low-level `DynamoDBClient`. Update any usages: `new DynamoDB({...})` instead of `new DynamoDBClient({...})`.
+
 ## [1.3.0] - 2026-05-23
 
 ### Added

@@ -30,9 +30,11 @@ class OrderTable { ... }
 Set a default for all tables via `DataSourceOptions.table.throughput`. Per-table settings override it:
 
 ```typescript
+import { DynamoDB } from '@aws-sdk/client-dynamodb';
+
 const dataSource = new DataSource({
   entities: [UserTable, OrderTable, LogTable],
-  client: new DynamoDBClient({ region: 'us-east-1' }),
+  client: new DynamoDB({ region: 'us-east-1' }),
   table: {
     throughput: 'ON_DEMAND', // default for all tables
   },

@@ -3,8 +3,44 @@ import {InternalModel} from '#/model/internal-model';
 import {Repository} from '#/repository/repository';
 import {resolveTableSchema} from '#/schema';
 import type {AnyItem, ThroughputOptions} from '#/types';
-import {type DynamoDB, type DynamoDBClient} from '@aws-sdk/client-dynamodb';
-import dynamoose, {Instance} from 'dynamoose';
+import dynamoose, {type aws} from 'dynamoose';
+
+type DynamoDB = InstanceType<typeof aws.ddb.DynamoDB>;
+
+type DataSourceOptionsLocal = {
+  /**
+   * Hostname of the local DynamoDB server. Defaults to `'localhost'`.
+   */
+  host?: string;
+
+  /**
+   * Port of the local DynamoDB server. Defaults to `8000`.
+   */
+  port?: number;
+};
+
+type DataSourceOptionsTable = {
+  /**
+   * String prepended to every table name.
+   * E.g. `'prod_'` transforms `'users'` → `'prod_users'`.
+   */
+  prefix?: string;
+
+  /**
+   * String appended to every table name.
+   * E.g. `'_v2'` transforms `'users'` → `'users_v2'`.
+   */
+  suffix?: string;
+
+  /**
+   * Default DynamoDB billing mode applied to all registered entities.
+   * Overridden per-entity via `@DynamoTable({ throughput: ... })`.
+   *
+   * @example
+   * table: { throughput: 'ON_DEMAND' }
+   */
+  throughput?: ThroughputOptions;
+};
 
 /**
  * Configuration options required to instantiate and initialize a {@link DataSource}.
@@ -17,27 +53,17 @@ export interface DataSourceOptions {
 
   /**
    * An optional pre-configured DynamoDB client instance (e.g. from `@aws-sdk/client-dynamodb`).
+   * Must be a full `DynamoDB` client (not `DynamoDBClient`), as Dynamoose calls methods
+   * like `createTable()` directly on the client.
    * If not specified, Dynamoose will attempt to instantiate a client using default AWS SDK environment variables.
    */
-  client?: DynamoDB | DynamoDBClient;
+  client?: DynamoDB;
 
   /**
    * Enables connecting to a local DynamoDB instance (e.g., DynamoDB Local running in Docker or offline).
    * Can be set to `true` to use the default `http://localhost:8000`, or an object specifying host/port configuration.
    */
-  local?:
-    | boolean
-    | {
-        /**
-         * Hostname of the local DynamoDB server. Defaults to `'localhost'`.
-         */
-        host?: string;
-
-        /**
-         * Port of the local DynamoDB server. Defaults to `8000`.
-         */
-        port?: number;
-      };
+  local?: boolean | DataSourceOptionsLocal;
 
   /**
    * Global table name transformations applied to all registered entities at initialization time.
@@ -51,28 +77,7 @@ export interface DataSourceOptions {
    * // @DynamoTable('users') → 'prod_users_v2'
    * table: { prefix: 'prod_', suffix: '_v2' }
    */
-  table?: {
-    /**
-     * String prepended to every table name.
-     * E.g. `'prod_'` transforms `'users'` → `'prod_users'`.
-     */
-    prefix?: string;
-
-    /**
-     * String appended to every table name.
-     * E.g. `'_v2'` transforms `'users'` → `'users_v2'`.
-     */
-    suffix?: string;
-
-    /**
-     * Default DynamoDB billing mode applied to all registered entities.
-     * Overridden per-entity via `@DynamoTable({ throughput: ... })`.
-     *
-     * @example
-     * table: { throughput: 'ON_DEMAND' }
-     */
-    throughput?: ThroughputOptions;
-  };
+  table?: DataSourceOptionsTable;
 }
 
 /**
@@ -113,10 +118,6 @@ export class DataSource {
    */
   readonly #models = new Map<new () => unknown, InternalModel<object>>();
   /**
-   * Dynamoose instance.
-   */
-  readonly #instance: InstanceType<typeof Instance>;
-  /**
    * Entity manager.
    */
   #manager: EntityManager | null = null;
@@ -127,7 +128,6 @@ export class DataSource {
 
   constructor(options: DataSourceOptions) {
     this.#options = options;
-    this.#instance = new Instance();
   }
 
   /**
@@ -222,7 +222,11 @@ export class DataSource {
   }
 
   /**
-   * Configure the AWS client.
+   * Configure the AWS client on the global Dynamoose instance.
+   *
+   * NOTE: Uses the global Dynamoose instance (not an isolated Instance) because
+   * `Schema` and `model` are always global in Dynamoose v4, and Table must share
+   * the same instance for DDB calls to resolve correctly.
    */
   #configureClient(): void {
     const {client, local} = this.#options;
@@ -230,12 +234,12 @@ export class DataSource {
     if (local) {
       const host = typeof local === 'object' ? (local.host ?? 'localhost') : 'localhost';
       const port = typeof local === 'object' ? (local.port ?? 8000) : 8000;
-      this.#instance.aws.ddb.local(`http://${host}:${port}`);
+      dynamoose.aws.ddb.local(`http://${host}:${port}`);
       return;
     }
 
     if (client) {
-      this.#instance.aws.ddb.set(client as unknown as DynamoDB);
+      dynamoose.aws.ddb.set(client);
     }
   }
 
@@ -267,7 +271,7 @@ export class DataSource {
     const dSchema = new dynamoose.Schema(resolved.definition, resolved.schemaOptions);
     const dModel = dynamoose.model(tableName, dSchema);
 
-    new this.#instance.Table(tableName, [dModel], tableOptions);
+    new dynamoose.Table(tableName, [dModel], tableOptions);
 
     this.#models.set(
       entityClass as new () => unknown,

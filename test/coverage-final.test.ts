@@ -180,15 +180,22 @@ vi.mock('dynamoose', async importOriginal => {
     }),
   };
 
+  const mockTable = vi.fn();
+  const mockAws = {ddb: {set: vi.fn(), local: vi.fn(), DynamoDB: (actual as any).aws?.ddb?.DynamoDB}};
+
   return {
     ...(actual as Record<string, unknown>),
     model: vi.fn().mockReturnValue(inlineBaselineMock),
-    Schema: vi.fn().mockImplementation((definition: unknown) => ({definition})),
+    Schema: vi.fn(),
+    Table: mockTable,
+    aws: mockAws,
     transaction: vi.fn().mockResolvedValue(undefined),
     Instance: MockInstance,
     default: {
       model: vi.fn().mockReturnValue(inlineBaselineMock),
       Schema: vi.fn(),
+      Table: mockTable,
+      aws: mockAws,
       transaction: vi.fn().mockResolvedValue(undefined),
       Instance: MockInstance,
     },

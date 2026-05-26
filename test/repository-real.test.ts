@@ -98,15 +98,24 @@ vi.mock('dynamoose', async importOriginal => {
     Table = vi.fn();
   }
 
+  const mockTable = vi.fn();
+  const mockAws = {ddb: {set: vi.fn(), local: vi.fn(), DynamoDB: (actual as any).aws?.ddb?.DynamoDB}};
+
   return {
     ...(actual as Record<string, unknown>),
     model: vi.fn().mockReturnValue(mockModel),
-    Schema: vi.fn().mockImplementation(definition => ({definition})),
+    Schema: vi.fn(),
+    Table: mockTable,
+    aws: mockAws,
     transaction: vi.fn(),
     Instance: MockInstance,
+    // default export is the entire module object for CJS interop
     default: {
+      ...(actual as Record<string, unknown>),
       model: vi.fn().mockReturnValue(mockModel),
       Schema: vi.fn(),
+      Table: mockTable,
+      aws: mockAws,
       transaction: vi.fn(),
       Instance: MockInstance,
     },

@@ -34,7 +34,7 @@ import {InternalModel} from '#/model/internal-model';
 import {resolveTableSchema} from '#/schema';
 import type {AnyRecord} from '#/types';
 import {isPlainObject, omit, pick, stripUnknownKeys} from '#/utils/object.utils';
-import {DynamoDBClient} from '@aws-sdk/client-dynamodb';
+import {DynamoDB} from '@aws-sdk/client-dynamodb';
 import dynamoose from 'dynamoose';
 import {type Mock, beforeEach, describe, expect, it, vi} from 'vitest';
 import {OrderTable, UserTable} from './fixtures';
@@ -135,6 +135,8 @@ const makeItem = (data: Record<string, unknown>): Record<string, unknown> => ({
 // ── Shared dynamoose mock ─────────────────────────────────────────────────────
 
 vi.mock('dynamoose', async importOriginal => {
+  const actual = await importOriginal();
+
   class MockInstance {
     aws = {ddb: {set: vi.fn(), local: vi.fn()}};
     Table = vi.fn();
@@ -170,15 +172,22 @@ vi.mock('dynamoose', async importOriginal => {
     }),
   };
 
+  const mockTable = vi.fn();
+  const mockAws = {ddb: {set: vi.fn(), local: vi.fn(), DynamoDB: (actual as any).aws?.ddb?.DynamoDB}};
+
   return {
-    ...(await importOriginal()),
+    ...(actual as Record<string, unknown>),
     model: vi.fn().mockReturnValue(inlineBaselineMock),
-    Schema: vi.fn().mockImplementation((definition: unknown) => ({definition})),
+    Schema: vi.fn(),
+    Table: mockTable,
+    aws: mockAws,
     transaction: vi.fn().mockResolvedValue(undefined),
     Instance: MockInstance,
     default: {
       model: vi.fn().mockReturnValue(inlineBaselineMock),
       Schema: vi.fn(),
+      Table: mockTable,
+      aws: mockAws,
       transaction: vi.fn().mockResolvedValue(undefined),
       Instance: MockInstance,
     },
@@ -520,8 +529,8 @@ describe('DataSource', () => {
   });
 
   it('configureClient with client sets the client', async () => {
-    const fakeDynamoDBClient = {} as DynamoDBClient;
-    const clientDataSource = new DataSource({entities: [UserTable], client: fakeDynamoDBClient});
+    const fakeDynamoDB = {} as DynamoDB;
+    const clientDataSource = new DataSource({entities: [UserTable], client: fakeDynamoDB});
     await clientDataSource.initialize();
     expect(clientDataSource.isInitialized).toBe(true);
   });

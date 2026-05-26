@@ -138,11 +138,11 @@ class OrderTable {
 
 ```typescript
 import { DataSource } from 'dynamoose-typed';
-import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
+import { DynamoDB } from '@aws-sdk/client-dynamodb';
 
 const dataSource = new DataSource({
   entities: [UserTable, OrderTable],
-  client: new DynamoDBClient({ region: 'us-east-1' }),
+  client: new DynamoDB({ region: 'us-east-1' }),
 });
 
 await dataSource.initialize();
@@ -166,21 +166,21 @@ When multiple environments share a single DynamoDB account, you can isolate them
 // production: @DynamoTable('users') → 'prod_users'
 const dataSource = new DataSource({
   entities: [UserTable, OrderTable],
-  client: new DynamoDBClient({ region: 'us-east-1' }),
+  client: new DynamoDB({ region: 'us-east-1' }),
   table: { prefix: 'prod_' },
 });
 
 // staging: @DynamoTable('users') → 'staging_users'
 const stagingDs = new DataSource({
   entities: [UserTable],
-  client: new DynamoDBClient({ region: 'us-east-1' }),
+  client: new DynamoDB({ region: 'us-east-1' }),
   table: { prefix: 'staging_' },
 });
 
 // both prefix and suffix: @DynamoTable('users') → 'prod_users_v2'
 const ds = new DataSource({
   entities: [UserTable],
-  client: new DynamoDBClient({ region: 'us-east-1' }),
+  client: new DynamoDB({ region: 'us-east-1' }),
   table: { prefix: 'prod_', suffix: '_v2' },
 });
 ```
@@ -210,7 +210,7 @@ class OrderTable { ... }
 // global default for all tables (overridden per-table if set)
 const dataSource = new DataSource({
   entities: [UserTable, OrderTable],
-  client: new DynamoDBClient({ region: 'us-east-1' }),
+  client: new DynamoDB({ region: 'us-east-1' }),
   table: { throughput: 'ON_DEMAND' },
 });
 ```

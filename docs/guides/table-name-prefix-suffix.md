@@ -8,14 +8,14 @@ DynamoDB has no concept of multiple databases — a single account shares one na
 
 ```typescript
 import { DataSource } from 'dynamoose-typed';
-import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
+import { DynamoDB } from '@aws-sdk/client-dynamodb';
 
 // All entity table names are prepended with 'prod_'
 // @DynamoTable('users')  → 'prod_users'
 // @DynamoTable('orders') → 'prod_orders'
 const dataSource = new DataSource({
   entities: [UserTable, OrderTable],
-  client: new DynamoDBClient({ region: 'us-east-1' }),
+  client: new DynamoDB({ region: 'us-east-1' }),
   table: { prefix: 'prod_' },
 });
 
@@ -40,7 +40,7 @@ const env = process.env.NODE_ENV; // 'prod' | 'staging' | 'dev'
 
 const dataSource = new DataSource({
   entities: [UserTable, OrderTable],
-  client: new DynamoDBClient({ region: 'us-east-1' }),
+  client: new DynamoDB({ region: 'us-east-1' }),
   table: { prefix: `${env}_` },
 });
 // prod_users, staging_users, dev_users
@@ -51,7 +51,7 @@ const dataSource = new DataSource({
 ```typescript
 const dataSource = new DataSource({
   entities: [UserTable],
-  client: new DynamoDBClient({ region: 'us-east-1' }),
+  client: new DynamoDB({ region: 'us-east-1' }),
   table: { suffix: '_v2' },
 });
 // users_v2
@@ -62,7 +62,7 @@ const dataSource = new DataSource({
 ```typescript
 const dataSource = new DataSource({
   entities: [UserTable],
-  client: new DynamoDBClient({ region: 'us-east-1' }),
+  client: new DynamoDB({ region: 'us-east-1' }),
   table: { prefix: 'prod_', suffix: '_v2' },
 });
 // prod_users_v2

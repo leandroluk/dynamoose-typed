@@ -109,11 +109,11 @@ class UserTable {
 ## DataSource setup
 
 ```ts
-import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
+import { DynamoDB } from '@aws-sdk/client-dynamodb';
 
 const dataSource = new DataSource({
   entities: [UserTable],
-  client: new DynamoDBClient({ region: 'us-east-1' }),
+  client: new DynamoDB({ region: 'us-east-1' }),
 });
 
 await dataSource.initialize();
