@@ -12,9 +12,9 @@ import type {
   WriteOptions,
 } from '#/types';
 import type * as DynamoDB from '@aws-sdk/client-dynamodb';
-import {Condition} from 'dynamoose/dist/Condition';
-import {type InputKey} from 'dynamoose/dist/General';
-import {type ItemSaveSettings} from 'dynamoose/dist/Item';
+import {Condition} from 'dynamoose/dist/Condition.js';
+import {type InputKey} from 'dynamoose/dist/General.js';
+import {type ItemSaveSettings} from 'dynamoose/dist/Item.js';
 
 interface ModelUpdateSettings {
   return?: 'item' | 'request';

@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.4.0] - 2026-05-27
+
+### Fixed
+
+- **ESM subpath imports** — deep imports from `dynamoose/dist/*` now include the `.js` extension (`Condition.js`, `General.js`, `Item.js`), fixing `Cannot find module` errors in ESM consumer packages.
+
 ## [1.3.1] - 2026-05-26
 
 ### Fixed

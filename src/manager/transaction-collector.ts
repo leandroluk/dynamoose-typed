@@ -1,6 +1,6 @@
 import type {InternalModel} from '#/model/internal-model';
 import dynamoose from 'dynamoose';
-import {type InputKey} from 'dynamoose/dist/General';
+import {type InputKey} from 'dynamoose/dist/General.js';
 
 type TxOp =
   | {type: 'create'; model: InternalModel<object>; item: Record<string, unknown>}
