@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.5.0] - 2026-05-27
+
+### Added
+
+- **`DynamoDB` re-export** — `DynamoDB` from `@aws-sdk/client-dynamodb` is now re-exported directly from `@leandroluk/dynamoose-typed`. Consumers no longer need to import from `@aws-sdk/client-dynamodb` (or from `dynamoose`) just to construct the client.
+
 ## [1.4.0] - 2026-05-27
 
 ### Fixed

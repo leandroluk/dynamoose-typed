@@ -137,8 +137,7 @@ class OrderTable {
 ## DataSource
 
 ```typescript
-import { DataSource } from 'dynamoose-typed';
-import { DynamoDB } from '@aws-sdk/client-dynamodb';
+import { DataSource, DynamoDB } from 'dynamoose-typed';
 
 const dataSource = new DataSource({
   entities: [UserTable, OrderTable],

@@ -18,6 +18,8 @@ export {
 
 export {OptimisticLockError} from './errors';
 
+export {DynamoDB} from '@aws-sdk/client-dynamodb';
+
 export {DataSource} from './data-source/data-source';
 export type {DataSourceOptions} from './data-source/data-source';
 
