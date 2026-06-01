@@ -173,7 +173,15 @@ vi.mock('dynamoose', async importOriginal => {
   };
 
   const mockTable = vi.fn();
-  const mockAws = {ddb: {set: vi.fn(), local: vi.fn(), DynamoDB: (actual as any).aws?.ddb?.DynamoDB}};
+  const mockDdb = vi.fn().mockReturnValue({
+    listTables: vi.fn().mockResolvedValue({TableNames: []}),
+  });
+  Object.assign(mockDdb, {
+    set: vi.fn(),
+    local: vi.fn(),
+    DynamoDB: (actual as any).aws?.ddb?.DynamoDB,
+  });
+  const mockAws = {ddb: mockDdb};
 
   return {
     ...(actual as Record<string, unknown>),
@@ -533,6 +541,24 @@ describe('DataSource', () => {
     const clientDataSource = new DataSource({entities: [UserTable], client: fakeDynamoDB});
     await clientDataSource.initialize();
     expect(clientDataSource.isInitialized).toBe(true);
+  });
+
+  describe('ping', () => {
+    it('returns true when listTables succeeds', async () => {
+      const ddbInstance = dynamoose.aws.ddb();
+      (vi.spyOn(ddbInstance, 'listTables') as any).mockResolvedValue({TableNames: []});
+
+      const pingResult = await dataSource.ping();
+      expect(pingResult).toBe(true);
+    });
+
+    it('returns false when listTables throws an error', async () => {
+      const ddbInstance = dynamoose.aws.ddb();
+      (vi.spyOn(ddbInstance, 'listTables') as any).mockRejectedValue(new Error('DynamoDB Connection Error'));
+
+      const pingResult = await dataSource.ping();
+      expect(pingResult).toBe(false);
+    });
   });
 });
 

@@ -48,3 +48,11 @@ describe('InMemoryDataSource table prefix/suffix', () => {
     expect(ds.getRepository(UserTable).tableName).toBe('users');
   });
 });
+
+describe('InMemoryDataSource.ping', () => {
+  it('returns true when pinged', async () => {
+    const ds = new InMemoryDataSource({entities: [UserTable]});
+    const pingResult = await ds.ping();
+    expect(pingResult).toBe(true);
+  });
+});

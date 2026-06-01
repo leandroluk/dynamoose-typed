@@ -157,6 +157,21 @@ export class DataSource {
   }
 
   /**
+   * Pings the DynamoDB connection to verify that credentials and connectivity are functional.
+   * Resolves to `true` if successful, `false` otherwise.
+   */
+  async ping(): Promise<boolean> {
+    try {
+      this.#configureClient();
+      const ddb = dynamoose.aws.ddb();
+      await ddb.listTables({Limit: 1});
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
    * Destroy the data source.
    */
   async destroy(): Promise<void> {

@@ -71,6 +71,13 @@ export class InMemoryDataSource {
     return callback(this.manager);
   }
 
+  /**
+   * Pings the in-memory data source. Always returns `true`.
+   */
+  async ping(): Promise<boolean> {
+    return true;
+  }
+
   // ── Test helpers ───────────────────────────────────────────────────────────
 
   /** Clear all repos (call in beforeEach). */

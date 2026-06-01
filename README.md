@@ -157,6 +157,17 @@ const dataSource = new DataSource({
 await dataSource.initialize();
 ```
 
+### Pinging connection
+
+You can verify the connectivity and credentials configuration at any time without accessing a specific table by calling `ping()`:
+
+```typescript
+const isHealthy = await dataSource.ping();
+```
+
+`InMemoryDataSource` also implements this method and always returns `true` to ensure API parity in tests.
+
+
 ## Table name prefix/suffix
 
 When multiple environments share a single DynamoDB account, you can isolate them using a table name prefix or suffix rather than separate regions:
