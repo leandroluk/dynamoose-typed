@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.6.3] - 2026-06-02
+
+### Fixed
+
+- **`DateAttribute` auto serialization on save** — `@DateAttribute({ format: 'epoch' })` and `@DateAttribute({ format: 'iso' })` now include automatic `set`/`get` transforms. Passing a `Date` instance when saving no longer throws `"Expected … to be of type number, instead found type object"`. User-supplied `set`/`get` options still override the defaults.
+- **`DateAttribute` default factory serialization** — a `default` factory that returns a `Date` object (e.g. `default: () => new Date(Date.now() + ttl)`) is now serialized to the correct storage type (epoch ms / ISO string) before being handed to Dynamoose, matching the behaviour of `@CreateDateAttribute` and `@UpdateDateAttribute`.
+
+## [1.6.2] - 2026-06-02
+
+### Changed
+
+- Internal refactor of schema-builder date handling (version bump only; superseded by 1.6.3 fix).
+
 ## [1.5.0] - 2026-05-27
 
 ### Added
