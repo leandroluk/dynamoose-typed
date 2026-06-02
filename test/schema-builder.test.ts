@@ -102,6 +102,42 @@ describe('resolveTableSchema', () => {
       const dateField = schema.definition['date'] as {type: never};
       expect(dateField.type).toBe(Number);
     });
+
+    it('DateAttribute default fn returning Date serializes to epoch number', () => {
+      const fixed = new Date('2024-01-01T00:00:00.000Z');
+      @DynamoTable('date-default-fn-date')
+      class DateDefaultFnTable {
+        @StringAttribute({hashKey: true}) id!: string;
+        @DateAttribute({default: () => fixed}) date!: Date;
+      }
+      const schema = resolveTableSchema(DateDefaultFnTable);
+      const field = schema.definition['date'] as {default: () => unknown};
+      expect(field.default()).toBe(fixed.getTime());
+    });
+
+    it('DateAttribute default fn returning number passes through', () => {
+      const epoch = 1234567890000;
+      @DynamoTable('date-default-fn-num')
+      class DateDefaultFnNumTable {
+        @StringAttribute({hashKey: true}) id!: string;
+        @DateAttribute({default: () => epoch}) date!: Date;
+      }
+      const schema = resolveTableSchema(DateDefaultFnNumTable);
+      const field = schema.definition['date'] as {default: () => unknown};
+      expect(field.default()).toBe(epoch);
+    });
+
+    it('DateAttribute raw Date default serializes to epoch number', () => {
+      const fixed = new Date('2024-06-01T00:00:00.000Z');
+      @DynamoTable('date-default-raw-date')
+      class DateDefaultRawTable {
+        @StringAttribute({hashKey: true}) id!: string;
+        @DateAttribute({default: fixed}) date!: Date;
+      }
+      const schema = resolveTableSchema(DateDefaultRawTable);
+      const field = schema.definition['date'] as {default: () => unknown};
+      expect(field.default()).toBe(fixed.getTime());
+    });
   });
 
   describe('set and array attributes', () => {
