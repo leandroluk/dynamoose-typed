@@ -73,12 +73,22 @@ export class InternalModel<T extends object = object> {
     return this.#dModel;
   }
 
-  /** Translate property keys → attribute names for a key object. */
+  /** Translate property keys → attribute names for a key object, serializing Date fields. */
   toAttributeKey(key: Partial<T>): AnyRecord {
     const out: AnyRecord = {};
+    const attrByProp: Record<string, StoredAttributeMeta> = {};
+    for (const attr of this.#rootAttrs()) {
+      attrByProp[attr.propertyKey] = attr;
+    }
     const entries = Object.entries(key as unknown as Record<string, unknown>);
     for (const [k, v] of entries) {
-      out[this.#schema.aliasMap[k] ?? k] = v;
+      const attrName = this.#schema.aliasMap[k] ?? k;
+      const meta = attrByProp[k];
+      if (meta?.kind === 'date' && v instanceof Date) {
+        out[attrName] = serializeDate(v, meta.timestampType as 'iso' | 'epoch' | 'ttl');
+      } else {
+        out[attrName] = v;
+      }
     }
     return out;
   }

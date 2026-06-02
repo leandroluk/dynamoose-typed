@@ -624,6 +624,24 @@ describe('injectTimestampsDeep edge cases', () => {
     expect(attributeKeyResult['unknownProp']).toBe('x');
   });
 
+  it('toAttributeKey serializes Date value for DateAttribute epoch field', () => {
+    @DynamoTable('ta-key-date')
+    class DateFieldTable {
+      @StringAttribute({hashKey: true}) id!: string;
+      @DateAttribute('expires_at', {format: 'epoch'}) expiresAt!: Date;
+    }
+    const tableSchema = resolveTableSchema(DateFieldTable);
+    const mockModel = makeMockDynamooseModel();
+    const internalModel = new InternalModel(
+      DateFieldTable,
+      tableSchema,
+      mockModel as unknown as ReturnType<typeof dynamoose.model>
+    );
+    const d = new Date('2024-01-01T00:00:00.000Z');
+    const result = internalModel.toAttributeKey({id: '1', expiresAt: d});
+    expect(result['expires_at']).toBe(d.getTime());
+  });
+
   it('toPropertyObject uses raw key when not in reverseAliasMap', () => {
     const tableSchema = resolveTableSchema(UserTable);
     const userMockModel = makeMockDynamooseModel();
