@@ -642,6 +642,24 @@ describe('injectTimestampsDeep edge cases', () => {
     expect(result['expires_at']).toBe(d.getTime());
   });
 
+  it('toAttributeKey omits deleteDate field when value is null', () => {
+    @DynamoTable('ta-key-delete-null')
+    class SoftDeleteTable {
+      @StringAttribute({hashKey: true}) id!: string;
+      @DeleteDateAttribute('deleted_at') deletedAt!: Date | null;
+    }
+    const tableSchema = resolveTableSchema(SoftDeleteTable);
+    const mockModel = makeMockDynamooseModel();
+    const internalModel = new InternalModel(
+      SoftDeleteTable,
+      tableSchema,
+      mockModel as unknown as ReturnType<typeof dynamoose.model>
+    );
+    const result = internalModel.toAttributeKey({id: '1', deletedAt: null});
+    expect('deleted_at' in result).toBe(false);
+    expect(result['id']).toBe('1');
+  });
+
   it('toPropertyObject uses raw key when not in reverseAliasMap', () => {
     const tableSchema = resolveTableSchema(UserTable);
     const userMockModel = makeMockDynamooseModel();

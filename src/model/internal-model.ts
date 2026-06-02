@@ -84,7 +84,16 @@ export class InternalModel<T extends object = object> {
     for (const [k, v] of entries) {
       const attrName = this.#schema.aliasMap[k] ?? k;
       const meta = attrByProp[k];
-      if (meta?.kind === 'date' && v instanceof Date) {
+      const isDateKind =
+        meta?.kind === 'date' ||
+        meta?.kind === 'createDate' ||
+        meta?.kind === 'updateDate' ||
+        meta?.kind === 'deleteDate';
+      if (isDateKind && v === null) {
+        // null deleteDate = not deleted; omit so Dynamoose doesn't validate type
+        continue;
+      }
+      if (isDateKind && v instanceof Date) {
         out[attrName] = serializeDate(v, meta.timestampType as 'iso' | 'epoch' | 'ttl');
       } else {
         out[attrName] = v;
