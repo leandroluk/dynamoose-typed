@@ -157,10 +157,20 @@ function buildDefinition(attributes: StoredAttributeMeta[], aliasMap: Record<str
       case 'date': {
         const isTtl = attr.timestampType === 'ttl';
         const fmt = attr.timestampType;
+        const rawDefault = opts['default'];
+        const wrappedDefault = rawDefault
+          ? (): string | number => {
+              const val = typeof rawDefault === 'function' ? (rawDefault as () => unknown)() : rawDefault;
+              if (val instanceof Date) {
+                return serializeDate(val, fmt as 'iso' | 'epoch' | 'ttl');
+              }
+              return val as string | number;
+            }
+          : undefined;
         const entry: Record<string, unknown> = {
           type: fmtToStorageType(fmt),
           required: opts['required'],
-          default: opts['default'],
+          default: wrappedDefault,
         };
         if (isTtl) {
           entry['get'] = opts['get'] ?? ((n: number): Date => new Date(n * 1000));
