@@ -175,13 +175,12 @@ function buildDefinition(attributes: StoredAttributeMeta[], aliasMap: Record<str
         if (isTtl) {
           entry['get'] = opts['get'] ?? ((n: number): Date => new Date(n * 1000));
           entry['set'] = opts['set'] ?? ((d: Date): number => Math.floor(d.getTime() / 1000));
+        } else if (fmt === 'epoch') {
+          entry['get'] = opts['get'] ?? ((n: number): Date => new Date(n));
+          entry['set'] = opts['set'] ?? ((d: Date | number): number => (d instanceof Date ? d.getTime() : d));
         } else {
-          if (opts['get']) {
-            entry['get'] = opts['get'];
-          }
-          if (opts['set']) {
-            entry['set'] = opts['set'];
-          }
+          entry['get'] = opts['get'] ?? ((s: string): Date => new Date(s));
+          entry['set'] = opts['set'] ?? ((d: Date | string): string => (d instanceof Date ? d.toISOString() : d));
         }
         if (opts['index']) {
           entry['index'] = buildIndexEntry(opts['index'] as boolean | IndexOptions, aliasMap);

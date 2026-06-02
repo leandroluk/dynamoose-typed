@@ -138,6 +138,90 @@ describe('resolveTableSchema', () => {
       const field = schema.definition['date'] as {default: () => unknown};
       expect(field.default()).toBe(fixed.getTime());
     });
+
+    it('DateAttribute epoch auto get converts number to Date', () => {
+      @DynamoTable('date-epoch-get')
+      class DateEpochGetTable {
+        @StringAttribute({hashKey: true}) id!: string;
+        @DateAttribute({format: 'epoch'}) ts!: Date;
+      }
+      const schema = resolveTableSchema(DateEpochGetTable);
+      const field = schema.definition['ts'] as {get: (n: number) => Date};
+      const epoch = 1700000000000;
+      expect(field.get(epoch)).toEqual(new Date(epoch));
+    });
+
+    it('DateAttribute epoch auto set converts Date to number', () => {
+      @DynamoTable('date-epoch-set-date')
+      class DateEpochSetDateTable {
+        @StringAttribute({hashKey: true}) id!: string;
+        @DateAttribute({format: 'epoch'}) ts!: Date;
+      }
+      const schema = resolveTableSchema(DateEpochSetDateTable);
+      const field = schema.definition['ts'] as {set: (d: Date | number) => number};
+      const d = new Date('2024-01-01T00:00:00.000Z');
+      expect(field.set(d)).toBe(d.getTime());
+    });
+
+    it('DateAttribute epoch auto set passes through number', () => {
+      @DynamoTable('date-epoch-set-num')
+      class DateEpochSetNumTable {
+        @StringAttribute({hashKey: true}) id!: string;
+        @DateAttribute({format: 'epoch'}) ts!: Date;
+      }
+      const schema = resolveTableSchema(DateEpochSetNumTable);
+      const field = schema.definition['ts'] as {set: (d: Date | number) => number};
+      expect(field.set(9999999)).toBe(9999999);
+    });
+
+    it('DateAttribute epoch respects user-provided get/set', () => {
+      const getFn = (n: number) => new Date(n + 1);
+      const setFn = (d: Date) => d.getTime() - 1;
+      @DynamoTable('date-epoch-custom')
+      class DateEpochCustomTable {
+        @StringAttribute({hashKey: true}) id!: string;
+        @DateAttribute({format: 'epoch', get: getFn as never, set: setFn as never}) ts!: Date;
+      }
+      const schema = resolveTableSchema(DateEpochCustomTable);
+      const field = schema.definition['ts'] as {get: unknown; set: unknown};
+      expect(field.get).toBe(getFn);
+      expect(field.set).toBe(setFn);
+    });
+
+    it('DateAttribute iso auto get converts string to Date', () => {
+      @DynamoTable('date-iso-get')
+      class DateIsoGetTable {
+        @StringAttribute({hashKey: true}) id!: string;
+        @DateAttribute({format: 'iso'}) ts!: Date;
+      }
+      const schema = resolveTableSchema(DateIsoGetTable);
+      const field = schema.definition['ts'] as {get: (s: string) => Date};
+      const iso = '2024-01-01T00:00:00.000Z';
+      expect(field.get(iso)).toEqual(new Date(iso));
+    });
+
+    it('DateAttribute iso auto set converts Date to string', () => {
+      @DynamoTable('date-iso-set-date')
+      class DateIsoSetDateTable {
+        @StringAttribute({hashKey: true}) id!: string;
+        @DateAttribute({format: 'iso'}) ts!: Date;
+      }
+      const schema = resolveTableSchema(DateIsoSetDateTable);
+      const field = schema.definition['ts'] as {set: (d: Date | string) => string};
+      const d = new Date('2024-06-15T12:00:00.000Z');
+      expect(field.set(d)).toBe(d.toISOString());
+    });
+
+    it('DateAttribute iso auto set passes through string', () => {
+      @DynamoTable('date-iso-set-str')
+      class DateIsoSetStrTable {
+        @StringAttribute({hashKey: true}) id!: string;
+        @DateAttribute({format: 'iso'}) ts!: Date;
+      }
+      const schema = resolveTableSchema(DateIsoSetStrTable);
+      const field = schema.definition['ts'] as {set: (d: Date | string) => string};
+      expect(field.set('2024-01-01T00:00:00.000Z')).toBe('2024-01-01T00:00:00.000Z');
+    });
   });
 
   describe('set and array attributes', () => {
