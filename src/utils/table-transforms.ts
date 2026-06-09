@@ -82,7 +82,9 @@ function parseDoc(attrs: StoredAttributeMeta[], raw: Record<string, unknown>): R
   }
   // remove explicitly-undefined keys (absent in DynamoDB = absent in result)
   for (const key of Object.keys(out)) {
-    if (out[key] === undefined) delete out[key];
+    if (out[key] === undefined) {
+      delete out[key];
+    }
   }
   return out;
 }
@@ -97,7 +99,9 @@ export function serializeDynamoTableItem<T extends object>(instance: T): Record<
   const knownKeys = new Set([...meta.attributes.map(a => a.propertyKey), ...meta.attributes.map(a => a.attributeName)]);
   const unknowns: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(source)) {
-    if (!knownKeys.has(k)) unknowns[k] = v;
+    if (!knownKeys.has(k)) {
+      unknowns[k] = v;
+    }
   }
   return {...unknowns, ...serializeDoc(meta.attributes, source)};
 }

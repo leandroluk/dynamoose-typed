@@ -160,7 +160,7 @@ describe('serializeDynamoTableItem', () => {
     const a2 = Object.assign(new AddrDoc(), {city: 'SF', createdAt: new Date('2024-06-01T00:00:00.000Z')});
     const item = Object.assign(new ItemTable(), {id: '1', addrs: [a1, a2]});
     const out = serializeDynamoTableItem(item);
-    const arr = out['addrs'] as unknown as Record<string, unknown>[];
+    const arr = out['addrs'] as Record<string, unknown>[];
     expect((arr[0] as Record<string, unknown>)['city_name']).toBe('LA');
     expect((arr[1] as Record<string, unknown>)['city_name']).toBe('SF');
   });
