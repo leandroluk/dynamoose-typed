@@ -324,3 +324,52 @@ describe('parseDynamoTableItem', () => {
     expect(() => parseDynamoTableItem(NotATable, {id: '1'})).toThrow('@DynamoTable');
   });
 });
+
+// ─── alias-in-options regression (bug fix) ───────────────────────────────────
+
+@DynamoDocument()
+class ContactDoc {
+  @StringAttribute('street')
+  streetName!: string;
+}
+
+@DynamoTable('contacts')
+class ContactTable {
+  @StringAttribute({hashKey: true})
+  id!: string;
+
+  @ArrayAttribute(() => String, {alias: 'phones'})
+  phoneNumberList!: string[];
+
+  @NestedAttribute(() => ContactDoc, {alias: 'addr'})
+  address?: ContactDoc;
+}
+
+describe('alias in options (bug fix)', () => {
+  it('serializeDynamoTableItem renames ArrayAttribute with alias in options', () => {
+    const item = Object.assign(new ContactTable(), {id: '1', phoneNumberList: ['+5511999']});
+    const out = serializeDynamoTableItem(item);
+    expect(out['phones']).toEqual(['+5511999']);
+    expect('phoneNumberList' in out).toBe(false);
+  });
+
+  it('serializeDynamoTableItem renames NestedAttribute with alias in options', () => {
+    const doc = Object.assign(new ContactDoc(), {streetName: 'Main St'});
+    const item = Object.assign(new ContactTable(), {id: '1', address: doc});
+    const out = serializeDynamoTableItem(item);
+    expect((out['addr'] as Record<string, unknown>)['street']).toBe('Main St');
+    expect('address' in out).toBe(false);
+  });
+
+  it('parseDynamoTableItem restores ArrayAttribute with alias in options', () => {
+    const result = parseDynamoTableItem(ContactTable, {id: '1', phones: ['+5511999']});
+    expect(result.phoneNumberList).toEqual(['+5511999']);
+    expect('phones' in result).toBe(false);
+  });
+
+  it('parseDynamoTableItem restores NestedAttribute with alias in options', () => {
+    const result = parseDynamoTableItem(ContactTable, {id: '1', addr: {street: 'Main St'}});
+    expect((result.address as unknown as Record<string, unknown>)['streetName']).toBe('Main St');
+    expect('addr' in result).toBe(false);
+  });
+});

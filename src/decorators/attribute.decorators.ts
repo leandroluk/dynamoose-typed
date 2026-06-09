@@ -28,7 +28,7 @@ function register(
     {
       ...partial,
       propertyKey: key,
-      attributeName: partial.attributeName ?? key, // must come after spread
+      attributeName: partial.attributeName ?? (partial.options?.['alias'] as string | undefined) ?? key,
     } as StoredAttributeMeta
   );
 }
