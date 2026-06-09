@@ -453,6 +453,44 @@ describe('UserService', () => {
 beforeEach(() => dataSource.clear());
 ```
 
+## Utility functions
+
+### `serializeDynamoTableItem(instance)`
+
+Converts a `@DynamoTable` class instance to a plain object using DynamoDB attribute names (respecting aliases) and serializing `Date` values to their storage format. Useful for migration scripts, event processors, or any code that needs to convert TypeScript objects to DynamoDB format without a running `DataSource`.
+
+```typescript
+import { serializeDynamoTableItem } from '@leandroluk/dynamoose-typed';
+
+@DynamoTable('users')
+class UserTable {
+  @StringAttribute({ hashKey: true }) id!: string;
+  @StringAttribute('full_name') name!: string;
+  @CreateDateAttribute('created_at') createdAt!: Date;
+}
+
+const user = new UserTable();
+user.id = '1';
+user.name = 'Alice';
+user.createdAt = new Date('2024-01-01T00:00:00.000Z');
+
+serializeDynamoTableItem(user);
+// → { id: '1', full_name: 'Alice', created_at: 1704067200000 }
+```
+
+### `parseDynamoTableItem(entityClass, raw)`
+
+Converts a raw DynamoDB attribute-named object back into a typed `@DynamoTable` class instance, reversing alias mappings and deserializing stored date values back to `Date` objects.
+
+```typescript
+import { parseDynamoTableItem } from '@leandroluk/dynamoose-typed';
+
+parseDynamoTableItem(UserTable, { id: '1', full_name: 'Alice', created_at: 1704067200000 });
+// → UserTable { id: '1', name: 'Alice', createdAt: Date(2024-01-01) }
+```
+
+Both functions handle nested `@DynamoDocument` objects and arrays of documents recursively. Unknown fields (not declared in the schema) are passed through as-is in both directions.
+
 ## Support
 
 If you find this project useful, please consider supporting its development:
