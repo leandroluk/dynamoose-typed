@@ -55,6 +55,74 @@ function injectTimestampsDeep(
   }
 }
 
+/**
+ * Recursively remaps the keys of a `nested` / `array`-of-documents value.
+ *
+ * Only key (alias) renaming is performed — Dynamoose's schema `get`/`set`
+ * functions handle nested date (de)serialization at every level, so we must not
+ * touch the values here.
+ */
+function remapNestedValue(
+  value: unknown,
+  attr: StoredAttributeMeta,
+  recurse: (v: AnyRecord, attrs: StoredAttributeMeta[]) => AnyRecord
+): unknown {
+  if (!attr.typeRef || value === null || typeof value !== 'object') {
+    return value;
+  }
+  const meta = getDocumentMeta(attr.typeRef());
+  if (!meta) {
+    return value;
+  }
+  if (attr.kind === 'nested' && !Array.isArray(value)) {
+    return recurse(value as AnyRecord, meta.attributes);
+  }
+  if (attr.kind === 'array' && Array.isArray(value)) {
+    return value.map(elem =>
+      elem !== null && typeof elem === 'object' ? recurse(elem as AnyRecord, meta.attributes) : elem
+    );
+  }
+  return value;
+}
+
+/**
+ * Recursively renames document keys from property name → DynamoDB attribute name,
+ * descending into nested documents and arrays of documents.
+ */
+function aliasKeysToAttribute(value: AnyRecord, attrs: StoredAttributeMeta[]): AnyRecord {
+  const out: AnyRecord = {...value};
+  for (const attr of attrs) {
+    if (!(attr.propertyKey in out)) {
+      continue;
+    }
+    const mapped = remapNestedValue(out[attr.propertyKey], attr, aliasKeysToAttribute);
+    if (attr.attributeName !== attr.propertyKey) {
+      delete out[attr.propertyKey];
+    }
+    out[attr.attributeName] = mapped;
+  }
+  return out;
+}
+
+/**
+ * Recursively renames document keys from DynamoDB attribute name → property name,
+ * descending into nested documents and arrays of documents.
+ */
+function aliasKeysToProperty(value: AnyRecord, attrs: StoredAttributeMeta[]): AnyRecord {
+  const out: AnyRecord = {...value};
+  for (const attr of attrs) {
+    if (!(attr.attributeName in out)) {
+      continue;
+    }
+    const mapped = remapNestedValue(out[attr.attributeName], attr, aliasKeysToProperty);
+    if (attr.attributeName !== attr.propertyKey) {
+      delete out[attr.attributeName];
+    }
+    out[attr.propertyKey] = mapped;
+  }
+  return out;
+}
+
 export class InternalModel<T extends object = object> {
   readonly #dModel: ReturnType<typeof dynamoose.model>;
   readonly #schema: ResolvedSchema;
@@ -95,6 +163,9 @@ export class InternalModel<T extends object = object> {
       }
       if (isDateKind && v instanceof Date) {
         out[attrName] = serializeDate(v, meta.timestampType as 'iso' | 'epoch' | 'ttl');
+      } else if (meta && (meta.kind === 'nested' || meta.kind === 'array')) {
+        // Recurse so nested-document aliases are applied at every level.
+        out[attrName] = remapNestedValue(v, meta, aliasKeysToAttribute);
       } else {
         out[attrName] = v;
       }
@@ -102,13 +173,9 @@ export class InternalModel<T extends object = object> {
     return out;
   }
 
-  /** Translate attribute names → property keys for a result object. */
+  /** Translate attribute names → property keys for a result object, recursing into nested documents. */
   toPropertyObject(raw: AnyRecord): T {
-    const out: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(raw)) {
-      out[this.#schema.reverseAliasMap[k] ?? k] = v;
-    }
-    return out as T;
+    return aliasKeysToProperty(raw, this.#rootAttrs()) as T;
   }
 
   #rootAttrs(): StoredAttributeMeta[] {
