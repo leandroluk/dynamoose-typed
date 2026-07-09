@@ -98,6 +98,7 @@ jobs:
       - name: Publish package
         if: steps.check.outputs.publish == 'true'
         run: |
+          npm install -g npm@latest sigstore
           npm pkg delete scripts.prepare
           npm publish --access public --provenance --loglevel verbose
 
