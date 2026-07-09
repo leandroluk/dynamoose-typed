@@ -672,6 +672,108 @@ describe('injectTimestampsDeep edge cases', () => {
     expect(propertyObjectResult.isActive).toBe(true);
     expect(propertyObjectResult.unknownAttr).toBe('x');
   });
+
+  it('toPropertyObject converts epoch number to Date', () => {
+    @DynamoTable('prop-epoch')
+    class EpochTable {
+      @StringAttribute({hashKey: true}) id!: string;
+      @DateAttribute({format: 'epoch'}) createdAt!: Date;
+    }
+    const schema = resolveTableSchema(EpochTable);
+    const model = new InternalModel(EpochTable, schema, makeMockDynamooseModel() as unknown as ReturnType<typeof dynamoose.model>);
+    const result = model.toPropertyObject({id: '1', createdAt: 1700000000000}) as unknown as AnyRecord;
+    expect(result.createdAt).toBeInstanceOf(Date);
+    expect((result.createdAt as Date).getTime()).toBe(1700000000000);
+  });
+
+  it('toPropertyObject converts iso string to Date', () => {
+    @DynamoTable('prop-iso')
+    class IsoTable {
+      @StringAttribute({hashKey: true}) id!: string;
+      @DateAttribute({format: 'iso'}) createdAt!: Date;
+    }
+    const schema = resolveTableSchema(IsoTable);
+    const model = new InternalModel(IsoTable, schema, makeMockDynamooseModel() as unknown as ReturnType<typeof dynamoose.model>);
+    const result = model.toPropertyObject({id: '1', createdAt: '2024-01-01T00:00:00.000Z'}) as unknown as AnyRecord;
+    expect(result.createdAt).toBeInstanceOf(Date);
+    expect((result.createdAt as Date).toISOString()).toBe('2024-01-01T00:00:00.000Z');
+  });
+
+  it('toPropertyObject converts ttl seconds to Date', () => {
+    @DynamoTable('prop-ttl')
+    class TtlTable {
+      @StringAttribute({hashKey: true}) id!: string;
+      @DateAttribute({ttl: true}) expiresAt!: Date;
+    }
+    const schema = resolveTableSchema(TtlTable);
+    const model = new InternalModel(TtlTable, schema, makeMockDynamooseModel() as unknown as ReturnType<typeof dynamoose.model>);
+    const ttlSeconds = 1700000000;
+    const result = model.toPropertyObject({id: '1', expiresAt: ttlSeconds}) as unknown as AnyRecord;
+    expect(result.expiresAt).toBeInstanceOf(Date);
+    expect((result.expiresAt as Date).getTime()).toBe(ttlSeconds * 1000);
+  });
+
+  it('toPropertyObject passes through null date', () => {
+    @DynamoTable('prop-null-date')
+    class NullDateTable {
+      @StringAttribute({hashKey: true}) id!: string;
+      @DeleteDateAttribute('deleted_at') deletedAt!: Date | null;
+    }
+    const schema = resolveTableSchema(NullDateTable);
+    const model = new InternalModel(NullDateTable, schema, makeMockDynamooseModel() as unknown as ReturnType<typeof dynamoose.model>);
+    const result = model.toPropertyObject({id: '1', deleted_at: null}) as unknown as AnyRecord;
+    expect(result.deletedAt).toBeNull();
+  });
+
+  it('toPropertyObject passes through already-Date value unchanged', () => {
+    @DynamoTable('prop-date-pass')
+    class PassDateTable {
+      @StringAttribute({hashKey: true}) id!: string;
+      @DateAttribute({format: 'epoch'}) createdAt!: Date;
+    }
+    const schema = resolveTableSchema(PassDateTable);
+    const model = new InternalModel(PassDateTable, schema, makeMockDynamooseModel() as unknown as ReturnType<typeof dynamoose.model>);
+    const d = new Date('2024-06-15T12:00:00.000Z');
+    const result = model.toPropertyObject({id: '1', createdAt: d}) as unknown as AnyRecord;
+    expect(result.createdAt).toBeInstanceOf(Date);
+    expect((result.createdAt as Date).getTime()).toBe(d.getTime());
+  });
+
+  it('normalize converts dates in nested documents and arrays', () => {
+    @DynamoDocument()
+    class NestedDateItem {
+      @StringAttribute() name!: string;
+      @CreateDateAttribute({format: 'epoch'}) createdAt!: Date;
+    }
+
+    @DynamoTable('nested-date-table')
+    class NestedDateTable {
+      @StringAttribute({hashKey: true}) id!: string;
+      @NestedAttribute(() => NestedDateItem) item!: NestedDateItem;
+      @ArrayAttribute(() => NestedDateItem) items!: NestedDateItem[];
+    }
+
+    const schema = resolveTableSchema(NestedDateTable);
+    const model = new InternalModel(NestedDateTable, schema, makeMockDynamooseModel() as unknown as ReturnType<typeof dynamoose.model>);
+
+    const raw: AnyRecord = {
+      id: '1',
+      item: {name: 'single', createdAt: 1700000000000},
+      items: [
+        {name: 'a', createdAt: 1700000000001},
+        {name: 'b', createdAt: 1700000000002},
+      ],
+    };
+
+    const result = model.normalize(raw) as unknown as AnyRecord;
+    const item = result.item as AnyRecord;
+    const items: AnyRecord[] = (result.items ?? []) as AnyRecord[];
+    expect(item.createdAt).toBeInstanceOf(Date);
+    expect((item.createdAt as Date).getTime()).toBe(1700000000000);
+    expect(items).toHaveLength(2);
+    expect((items[0]!.createdAt as Date).getTime()).toBe(1700000000001);
+    expect((items[1]!.createdAt as Date).getTime()).toBe(1700000000002);
+  });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
