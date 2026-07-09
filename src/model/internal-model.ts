@@ -55,6 +55,23 @@ function injectTimestampsDeep(
   }
 }
 
+function isDateKind(kind: string): boolean {
+  return kind === 'date' || kind === 'createDate' || kind === 'updateDate' || kind === 'deleteDate';
+}
+
+function parseTimestamp(value: unknown, timestampType?: string): unknown {
+  if (value === null || value === undefined || value instanceof Date) {
+    return value;
+  }
+  if (timestampType === 'iso') {
+    return new Date(value as string);
+  }
+  if (timestampType === 'ttl') {
+    return new Date((value as number) * 1000);
+  }
+  return new Date(value as number);
+}
+
 /**
  * Recursively remaps the keys of a `nested` / `array`-of-documents value.
  *
@@ -114,7 +131,10 @@ function aliasKeysToProperty(value: AnyRecord, attrs: StoredAttributeMeta[]): An
     if (!(attr.attributeName in out)) {
       continue;
     }
-    const mapped = remapNestedValue(out[attr.attributeName], attr, aliasKeysToProperty);
+    let mapped = remapNestedValue(out[attr.attributeName], attr, aliasKeysToProperty);
+    if (isDateKind(attr.kind)) {
+      mapped = parseTimestamp(mapped, attr.timestampType);
+    }
     if (attr.attributeName !== attr.propertyKey) {
       delete out[attr.attributeName];
     }
