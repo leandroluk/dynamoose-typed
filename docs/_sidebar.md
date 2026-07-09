@@ -27,3 +27,6 @@
 - **Examples**
   - [Users walkthrough](examples/users.md)
   - [Composite keys & orders](examples/order.md)
+
+- **Community**
+  - [Contributors](README.md#contributors)

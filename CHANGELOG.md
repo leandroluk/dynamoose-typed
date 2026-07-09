@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.8.4] - 2026-07-09
+
+### Fixed
+
+- **Date conversion in nested/array documents on read** — Dynamoose does not consistently apply `get` transforms to items inside nested documents or arrays, so timestamp fields (`@DateAttribute`, `@CreateDateAttribute`, `@UpdateDateAttribute`, `@DeleteDateAttribute`) reached Zod validation as raw numbers/strings instead of `Date` instances. `aliasKeysToProperty()` now explicitly converts stored timestamps (epoch, iso, ttl) to `Date` at every nesting level.
+
 ## [1.8.3] - 2026-07-09
 
 ### Fixed

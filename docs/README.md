@@ -17,6 +17,9 @@
     <img src="https://img.shields.io/github/actions/workflow/status/leandroluk/dynamoose-typed/ci.yml?branch=master" alt="CI Status" />
   </a>
   <img src="https://img.shields.io/badge/coverage-100%25-brightgreen.svg" alt="Coverage 100%" />
+  <a href="#contributors">
+    <img src="https://img.shields.io/badge/all_contributors-3-orange.svg" alt="All Contributors" />
+  </a>
   <a href="https://buymeacoffee.com/leandroluk">
     <img src="https://img.shields.io/badge/Buy%20Me%20a%20Coffee-ffdd00?style=flat&logo=buy-me-a-coffee&logoColor=black" alt="Buy Me a Coffee" />
   </a>
@@ -601,6 +604,30 @@ await repo.save({ id: '1', expiresAt: new Date(Date.now() + 86400_000) });
 ```typescript
 beforeEach(() => dataSource.clear());
 ```
+
+## Contributors
+
+Thanks goes to these wonderful people
+
+<!-- ALL-CONTRIBUTORS-LIST:START - Do not remove or modify this section -->
+<!-- prettier-ignore-start -->
+<!-- markdownlint-disable -->
+<table>
+  <tbody>
+    <tr>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/diego-rib"><img src="https://avatars.githubusercontent.com/u/57909002?v=4?s=100" width="100px;" alt="Diego Rib"/><br /><sub><b>Diego Rib</b></sub></a><br /><a href="https://github.com/leandroluk/dynamoose-typed/commits?author=diego-rib" title="Code">💻</a> <a href="https://github.com/leandroluk/dynamoose-typed/commits?author=diego-rib" title="Tests">⚠️</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/leandroluk"><img src="https://avatars.githubusercontent.com/u/8602982?v=4?s=100" width="100px;" alt="Leandro Santiago Gomes"/><br /><sub><b>Leandro Santiago Gomes</b></sub></a><br /><a href="https://github.com/leandroluk/dynamoose-typed/commits?author=leandroluk" title="Code">💻</a> <a href="#maintenance-leandroluk" title="Maintenance">🚧</a> <a href="https://github.com/leandroluk/dynamoose-typed/commits?author=leandroluk" title="Documentation">📖</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/vitorluigiorsini"><img src="https://avatars.githubusercontent.com/u/104171028?v=4?s=100" width="100px;" alt="Vitor Orsini"/><br /><sub><b>Vitor Orsini</b></sub></a><br /><a href="https://github.com/leandroluk/dynamoose-typed/commits?author=vitorluigiorsini" title="Code">💻</a> <a href="https://github.com/leandroluk/dynamoose-typed/commits?author=vitorluigiorsini" title="Tests">⚠️</a></td>
+    </tr>
+  </tbody>
+</table>
+
+<!-- markdownlint-restore -->
+<!-- prettier-ignore-end -->
+
+<!-- ALL-CONTRIBUTORS-LIST:END -->
+
+This project follows the [all-contributors](https://allcontributors.org) specification. Contributions of any kind welcome!
 
 ## Support
 

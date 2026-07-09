@@ -1,0 +1,49 @@
+{
+  "projectName": "dynamoose-typed",
+  "projectOwner": "leandroluk",
+  "repoType": "github",
+  "repoHost": "https://github.com",
+  "files": [
+    "README.md",
+    "docs/README.md"
+  ],
+  "imageSize": 100,
+  "commit": false,
+  "commitConvention": "angular",
+  "contributorsPerLine": 7,
+  "contributorsSortAlphabetically": true,
+  "skipCi": true,
+  "contributors": [
+    {
+      "login": "leandroluk",
+      "name": "Leandro Santiago Gomes",
+      "avatar_url": "https://avatars.githubusercontent.com/u/8602982?v=4",
+      "profile": "https://github.com/leandroluk",
+      "contributions": [
+        "code",
+        "maintenance",
+        "doc"
+      ]
+    },
+    {
+      "login": "diego-rib",
+      "name": "Diego Rib",
+      "avatar_url": "https://avatars.githubusercontent.com/u/57909002?v=4",
+      "profile": "https://github.com/diego-rib",
+      "contributions": [
+        "code",
+        "test"
+      ]
+    },
+    {
+      "login": "vitorluigiorsini",
+      "name": "Vitor Orsini",
+      "avatar_url": "https://avatars.githubusercontent.com/u/104171028?v=4",
+      "profile": "https://github.com/vitorluigiorsini",
+      "contributions": [
+        "code",
+        "test"
+      ]
+    }
+  ]
+}
