@@ -201,11 +201,12 @@ function buildDefinition(attributes: StoredAttributeMeta[], aliasMap: Record<str
               ? (): string | number => serializeDate(new Date(), fmt)
               : opts['default'],
         };
-        if (opts['get']) {
-          entry['get'] = opts['get'];
-        }
-        if (opts['set']) {
-          entry['set'] = opts['set'];
+        if (fmt === 'epoch') {
+          entry['get'] = opts['get'] ?? ((n: number): Date => new Date(n));
+          entry['set'] = opts['set'] ?? ((d: Date | number): number => (d instanceof Date ? d.getTime() : d));
+        } else {
+          entry['get'] = opts['get'] ?? ((s: string): Date => new Date(s));
+          entry['set'] = opts['set'] ?? ((d: Date | string): string => (d instanceof Date ? d.toISOString() : d));
         }
         if (opts['index']) {
           entry['index'] = buildIndexEntry(opts['index'] as boolean | IndexOptions, aliasMap);

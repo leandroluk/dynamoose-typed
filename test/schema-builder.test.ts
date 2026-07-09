@@ -3,12 +3,14 @@ import {
   BooleanAttribute,
   CreateDateAttribute,
   DateAttribute,
+  DeleteDateAttribute,
   DynamoDocument,
   DynamoTable,
   NestedAttribute,
   NumberAttribute,
   SetAttribute,
   StringAttribute,
+  UpdateDateAttribute,
 } from '#';
 import {resolveTableSchema, serializeDate} from '#/schema';
 import {describe, expect, it} from 'vitest';
@@ -335,6 +337,56 @@ describe('resolveTableSchema', () => {
       }
       const schema = resolveTableSchema(CdateSetTable);
       expect((schema.definition['createdAt'] as Record<string, unknown>)['set']).toBe(setFn);
+    });
+
+    it('CreateDateAttribute default get/set round-trips epoch number to Date', () => {
+      @DynamoTable('cdate-epoch-default')
+      class CdateEpochTable {
+        @StringAttribute({hashKey: true}) id!: string;
+        @CreateDateAttribute() createdAt!: Date;
+      }
+      const schema = resolveTableSchema(CdateEpochTable);
+      const field = schema.definition['createdAt'] as {
+        get: (v: number) => Date;
+        set: (v: Date | number) => number;
+      };
+      const now = new Date('2024-01-01T00:00:00.000Z');
+      expect(field.set(now)).toBe(now.getTime());
+      expect(field.set(now.getTime())).toBe(now.getTime());
+      expect(field.get(now.getTime())).toEqual(now);
+    });
+
+    it('UpdateDateAttribute default get/set round-trips ISO string to Date', () => {
+      @DynamoTable('udate-iso-default')
+      class UdateIsoTable {
+        @StringAttribute({hashKey: true}) id!: string;
+        @UpdateDateAttribute({format: 'iso'}) updatedAt!: Date;
+      }
+      const schema = resolveTableSchema(UdateIsoTable);
+      const field = schema.definition['updatedAt'] as {
+        get: (v: string) => Date;
+        set: (v: Date | string) => string;
+      };
+      const now = new Date('2024-06-01T12:00:00.000Z');
+      expect(field.set(now)).toBe(now.toISOString());
+      expect(field.set(now.toISOString())).toBe(now.toISOString());
+      expect(field.get(now.toISOString())).toEqual(now);
+    });
+
+    it('DeleteDateAttribute default get/set round-trips ISO string to Date', () => {
+      @DynamoTable('ddate-iso-default')
+      class DdateIsoTable {
+        @StringAttribute({hashKey: true}) id!: string;
+        @DeleteDateAttribute({format: 'iso'}) deletedAt!: Date | null;
+      }
+      const schema = resolveTableSchema(DdateIsoTable);
+      const field = schema.definition['deletedAt'] as {
+        get: (v: string) => Date;
+        set: (v: Date | string) => string;
+      };
+      const now = new Date('2024-09-01T00:00:00.000Z');
+      expect(field.set(now)).toBe(now.toISOString());
+      expect(field.get(now.toISOString())).toEqual(now);
     });
 
     it('NestedAttribute with index:true includes index in entry', () => {

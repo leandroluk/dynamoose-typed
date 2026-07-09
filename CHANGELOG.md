@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.8.3] - 2026-07-09
+
+### Fixed
+
+- **`CreateDateAttribute` / `UpdateDateAttribute` / `DeleteDateAttribute` auto deserialization on read** — these decorators now include automatic `get`/`set` transforms, matching `@DateAttribute`. Previously only the storage `type` (`Number`/`String`) was set, so reading an item back from DynamoDB returned the raw epoch number / ISO string instead of a `Date` instance. User-supplied `get`/`set` options still override the defaults.
+
 ## [1.6.3] - 2026-06-02
 
 ### Fixed
