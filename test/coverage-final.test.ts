@@ -680,7 +680,11 @@ describe('injectTimestampsDeep edge cases', () => {
       @DateAttribute({format: 'epoch'}) createdAt!: Date;
     }
     const schema = resolveTableSchema(EpochTable);
-    const model = new InternalModel(EpochTable, schema, makeMockDynamooseModel() as unknown as ReturnType<typeof dynamoose.model>);
+    const model = new InternalModel(
+      EpochTable,
+      schema,
+      makeMockDynamooseModel() as unknown as ReturnType<typeof dynamoose.model>
+    );
     const result = model.toPropertyObject({id: '1', createdAt: 1700000000000}) as unknown as AnyRecord;
     expect(result.createdAt).toBeInstanceOf(Date);
     expect((result.createdAt as Date).getTime()).toBe(1700000000000);
@@ -693,7 +697,11 @@ describe('injectTimestampsDeep edge cases', () => {
       @DateAttribute({format: 'iso'}) createdAt!: Date;
     }
     const schema = resolveTableSchema(IsoTable);
-    const model = new InternalModel(IsoTable, schema, makeMockDynamooseModel() as unknown as ReturnType<typeof dynamoose.model>);
+    const model = new InternalModel(
+      IsoTable,
+      schema,
+      makeMockDynamooseModel() as unknown as ReturnType<typeof dynamoose.model>
+    );
     const result = model.toPropertyObject({id: '1', createdAt: '2024-01-01T00:00:00.000Z'}) as unknown as AnyRecord;
     expect(result.createdAt).toBeInstanceOf(Date);
     expect((result.createdAt as Date).toISOString()).toBe('2024-01-01T00:00:00.000Z');
@@ -706,7 +714,11 @@ describe('injectTimestampsDeep edge cases', () => {
       @DateAttribute({ttl: true}) expiresAt!: Date;
     }
     const schema = resolveTableSchema(TtlTable);
-    const model = new InternalModel(TtlTable, schema, makeMockDynamooseModel() as unknown as ReturnType<typeof dynamoose.model>);
+    const model = new InternalModel(
+      TtlTable,
+      schema,
+      makeMockDynamooseModel() as unknown as ReturnType<typeof dynamoose.model>
+    );
     const ttlSeconds = 1700000000;
     const result = model.toPropertyObject({id: '1', expiresAt: ttlSeconds}) as unknown as AnyRecord;
     expect(result.expiresAt).toBeInstanceOf(Date);
@@ -720,7 +732,11 @@ describe('injectTimestampsDeep edge cases', () => {
       @DeleteDateAttribute('deleted_at') deletedAt!: Date | null;
     }
     const schema = resolveTableSchema(NullDateTable);
-    const model = new InternalModel(NullDateTable, schema, makeMockDynamooseModel() as unknown as ReturnType<typeof dynamoose.model>);
+    const model = new InternalModel(
+      NullDateTable,
+      schema,
+      makeMockDynamooseModel() as unknown as ReturnType<typeof dynamoose.model>
+    );
     const result = model.toPropertyObject({id: '1', deleted_at: null}) as unknown as AnyRecord;
     expect(result.deletedAt).toBeNull();
   });
@@ -732,7 +748,11 @@ describe('injectTimestampsDeep edge cases', () => {
       @DateAttribute({format: 'epoch'}) createdAt!: Date;
     }
     const schema = resolveTableSchema(PassDateTable);
-    const model = new InternalModel(PassDateTable, schema, makeMockDynamooseModel() as unknown as ReturnType<typeof dynamoose.model>);
+    const model = new InternalModel(
+      PassDateTable,
+      schema,
+      makeMockDynamooseModel() as unknown as ReturnType<typeof dynamoose.model>
+    );
     const d = new Date('2024-06-15T12:00:00.000Z');
     const result = model.toPropertyObject({id: '1', createdAt: d}) as unknown as AnyRecord;
     expect(result.createdAt).toBeInstanceOf(Date);
@@ -754,7 +774,11 @@ describe('injectTimestampsDeep edge cases', () => {
     }
 
     const schema = resolveTableSchema(NestedDateTable);
-    const model = new InternalModel(NestedDateTable, schema, makeMockDynamooseModel() as unknown as ReturnType<typeof dynamoose.model>);
+    const model = new InternalModel(
+      NestedDateTable,
+      schema,
+      makeMockDynamooseModel() as unknown as ReturnType<typeof dynamoose.model>
+    );
 
     const raw: AnyRecord = {
       id: '1',
