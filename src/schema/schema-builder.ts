@@ -1,5 +1,5 @@
 import {getDocumentMeta, getTableMeta} from '#/decorators/metadata.registry';
-import type {DocumentMeta, IndexOptions, StoredAttributeMeta} from '#/types';
+import type {DocumentMeta, IndexOptions, StoredAttributeMeta, StreamViewType} from '#/types';
 
 function fmtToStorageType(fmt: 'iso' | 'epoch' | 'ttl' | undefined): StringConstructor | NumberConstructor {
   return fmt === 'iso' ? String : Number;
@@ -342,6 +342,8 @@ export interface ResolvedSchema {
   versionKey?: string;
   /** Attribute name (after alias resolution) of the @VersionAttribute field, if any. */
   versionAttrName?: string;
+  /** Resolved DynamoDB Streams view type, if `stream` was set on `@DynamoTable`. */
+  streamViewType?: StreamViewType;
   /** Property → attribute name mapping for alias resolution. */
   aliasMap: Record<string, string>;
   /** Attribute name → property key (reverse). */
@@ -375,7 +377,10 @@ export function resolveTableSchema(entityClass: new () => unknown): ResolvedSche
 
   const definition = buildDefinition(meta.attributes, aliasMap);
 
-  const {_hooks, ...tableOptions} = meta.options as Record<string, unknown>;
+  const {_hooks, stream, ...tableOptions} = meta.options as Record<string, unknown> & {
+    stream?: StreamViewType | true;
+  };
+  const streamViewType: StreamViewType | undefined = stream === true ? 'NEW_AND_OLD_IMAGES' : stream;
 
   const deleteDateAttr = meta.attributes.find(a => a.kind === 'deleteDate');
   const deleteDateIndexName =
@@ -405,6 +410,7 @@ export function resolveTableSchema(entityClass: new () => unknown): ResolvedSche
     ttlKey,
     versionKey,
     versionAttrName,
+    streamViewType,
     aliasMap,
     reverseAliasMap,
   };

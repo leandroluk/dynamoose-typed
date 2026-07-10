@@ -520,6 +520,43 @@ describe('resolveTableSchema', () => {
     }
     expect(() => resolveTableSchema(NoKey)).toThrow('hashKey');
   });
+
+  describe('stream option', () => {
+    it('omits streamViewType when @DynamoTable has no stream option', () => {
+      @DynamoTable('plain_stream_test')
+      class PlainTable {
+        @StringAttribute({hashKey: true})
+        id!: string;
+      }
+
+      const resolved = resolveTableSchema(PlainTable);
+      expect(resolved.streamViewType).toBeUndefined();
+      expect(resolved.tableOptions['stream']).toBeUndefined();
+    });
+
+    it('resolves stream: true to NEW_AND_OLD_IMAGES and strips it from tableOptions', () => {
+      @DynamoTable('bool_stream_test', {stream: true})
+      class BoolStreamTable {
+        @StringAttribute({hashKey: true})
+        id!: string;
+      }
+
+      const resolved = resolveTableSchema(BoolStreamTable);
+      expect(resolved.streamViewType).toBe('NEW_AND_OLD_IMAGES');
+      expect(resolved.tableOptions['stream']).toBeUndefined();
+    });
+
+    it('passes through an explicit StreamViewType', () => {
+      @DynamoTable('explicit_stream_test', {stream: 'NEW_IMAGE'})
+      class ExplicitStreamTable {
+        @StringAttribute({hashKey: true})
+        id!: string;
+      }
+
+      const resolved = resolveTableSchema(ExplicitStreamTable);
+      expect(resolved.streamViewType).toBe('NEW_IMAGE');
+    });
+  });
 });
 
 describe('composite GSI (index as object)', () => {

@@ -1,5 +1,6 @@
 import type {StoredAttributeMeta} from './attribute.types';
 import type {TableHooks} from './core.types';
+import type {StreamViewType} from './stream.types';
 
 // ─── Throughput ───────────────────────────────────────────────────────────────
 
@@ -62,6 +63,18 @@ export interface TableOptions<T = unknown> extends SchemaOptions {
    * @DynamoTable('users', { throughput: 'ON_DEMAND' })
    */
   throughput?: ThroughputOptions;
+
+  /**
+   * Enables DynamoDB Streams on this table — required for `Repository.subscribe()`.
+   * `true` is shorthand for `'NEW_AND_OLD_IMAGES'` (recommended: only view type where `REMOVE`
+   * events carry the deleted item and `INSERT`/`MODIFY` carry the full new item).
+   * The library enables/updates the stream on the physical table lazily, on the first `subscribe()` call —
+   * not at `DataSource.initialize()` time.
+   *
+   * @example
+   * @DynamoTable('users', { stream: true })
+   */
+  stream?: StreamViewType | true;
 }
 
 // ─── Stored metadata ──────────────────────────────────────────────────────────
