@@ -7,6 +7,8 @@ const POLL_DELAY_EMPTY_MS = 1000;
 const POLL_DELAY_ERROR_MS = 1000;
 const RESCAN_INTERVAL_MS = 60_000;
 
+type ShardIteratorType = 'LATEST' | 'TRIM_HORIZON';
+
 export interface StreamShard {
   ShardId: string;
   ParentShardId?: string;
@@ -27,7 +29,7 @@ export interface DynamoDBStreamsLike {
   getShardIterator(input: {
     StreamArn: string;
     ShardId: string;
-    ShardIteratorType: 'LATEST';
+    ShardIteratorType: ShardIteratorType;
   }): Promise<{ShardIterator?: string}>;
   getRecords(input: {ShardIterator: string}): Promise<{Records?: StreamRecordLike[]; NextShardIterator?: string}>;
 }
@@ -58,7 +60,8 @@ export class StreamPoller {
   readonly #listeners = new Set<StreamPollerListener>();
   readonly #activeShards = new Set<string>();
   #rescanTimer: ReturnType<typeof setInterval> | undefined;
-  #stopped = true;
+  #generation = 0;
+  #isFirstRescan = true;
 
   constructor(client: DynamoDBStreamsLike, streamArn: string) {
     this.#client = client;
@@ -83,19 +86,20 @@ export class StreamPoller {
   }
 
   #start(): void {
-    this.#stopped = false;
+    this.#isFirstRescan = true;
     void this.#rescan();
     this.#rescanTimer = setInterval(() => void this.#rescan(), RESCAN_INTERVAL_MS);
   }
 
   #stop(): void {
-    this.#stopped = true;
+    this.#generation++;
     this.#activeShards.clear();
     clearInterval(this.#rescanTimer);
     this.#rescanTimer = undefined;
   }
 
   async #rescan(): Promise<void> {
+    const generation = this.#generation;
     let shards: StreamShard[];
     try {
       const result = await this.#client.describeStream({StreamArn: this.#streamArn});
@@ -104,35 +108,45 @@ export class StreamPoller {
       this.#dispatchError(err);
       return;
     }
+    if (generation !== this.#generation) {
+      return;
+    }
+    const iteratorType: ShardIteratorType = this.#isFirstRescan ? 'LATEST' : 'TRIM_HORIZON';
+    this.#isFirstRescan = false;
     for (const shard of shards) {
       const isOpen = !shard.SequenceNumberRange?.EndingSequenceNumber;
       if (isOpen && !this.#activeShards.has(shard.ShardId)) {
         this.#activeShards.add(shard.ShardId);
-        void this.#readShard(shard.ShardId);
+        void this.#readShard(shard.ShardId, generation, iteratorType);
       }
     }
   }
 
-  async #readShard(shardId: string): Promise<void> {
+  async #readShard(shardId: string, generation: number, initialIteratorType: ShardIteratorType): Promise<void> {
     let iterator: string | undefined;
     try {
       const acquired = await this.#client.getShardIterator({
         StreamArn: this.#streamArn,
         ShardId: shardId,
-        ShardIteratorType: 'LATEST',
+        ShardIteratorType: initialIteratorType,
       });
       iterator = acquired.ShardIterator;
     } catch (err) {
-      this.#dispatchError(err);
-      this.#activeShards.delete(shardId);
+      if (generation === this.#generation) {
+        this.#dispatchError(err);
+        this.#activeShards.delete(shardId);
+      }
       return;
     }
 
-    while (!this.#stopped && iterator) {
+    while (generation === this.#generation && iterator) {
       let recordsResult: {Records?: StreamRecordLike[]; NextShardIterator?: string};
       try {
         recordsResult = await this.#client.getRecords({ShardIterator: iterator});
       } catch (err) {
+        if (generation !== this.#generation) {
+          return;
+        }
         if ((err as {name?: string}).name === 'ExpiredIteratorException') {
           try {
             const reacquired = await this.#client.getShardIterator({
@@ -152,6 +166,13 @@ export class StreamPoller {
         continue;
       }
 
+      // A stale reader (from a prior start/stop generation) must become a complete
+      // no-op as soon as it resumes from this await — it must not dispatch records
+      // or touch #activeShards, even though the promise it was awaiting has resolved.
+      if (generation !== this.#generation) {
+        return;
+      }
+
       const records = recordsResult.Records ?? [];
       for (const record of records) {
         this.#dispatchRecord(record);
@@ -164,8 +185,8 @@ export class StreamPoller {
       await delay(records.length > 0 ? POLL_DELAY_WITH_RECORDS_MS : POLL_DELAY_EMPTY_MS);
     }
 
-    this.#activeShards.delete(shardId);
-    if (!this.#stopped) {
+    if (generation === this.#generation) {
+      this.#activeShards.delete(shardId);
       void this.#rescan();
     }
   }

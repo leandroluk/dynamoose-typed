@@ -25,6 +25,13 @@ export async function ensureStreamEnabled(
   const described = await client.describeTable({TableName: tableName});
   const spec = described.Table?.StreamSpecification;
 
+  // Known v1 limitation (not handled here): changing an existing table's `stream` view
+  // type after it's already enabled is not supported by this helper. AWS rejects an
+  // `UpdateTable` that changes `StreamViewType` on an already-enabled stream in one call
+  // (`ValidationException`) — it requires a disable-then-re-enable sequence, which this
+  // function does not perform. If you change `@DynamoTable`'s `stream` option on a table
+  // that already has streams enabled with a different view type, disable and re-enable
+  // the stream manually (e.g. via the AWS console/CLI) before the next `subscribe()` call.
   if (spec?.StreamEnabled && spec.StreamViewType === viewType) {
     return described.Table!.LatestStreamArn!;
   }

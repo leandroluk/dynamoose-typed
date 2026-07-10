@@ -1,4 +1,4 @@
-import {StreamPoller, type DynamoDBStreamsLike} from '#/streams/stream-poller';
+import {StreamPoller, type DynamoDBStreamsLike, type StreamRecordLike} from '#/streams/stream-poller';
 import {afterEach, beforeEach, describe, expect, it, vi, type Mock} from 'vitest';
 
 function makeClient(): DynamoDBStreamsLike & {
@@ -218,8 +218,16 @@ describe('StreamPoller — resilience', () => {
     await vi.advanceTimersByTimeAsync(0);
     await vi.advanceTimersByTimeAsync(0);
 
+    // Parent shard was discovered on the very first rescan — still LATEST (no historical
+    // backfill on first subscribe, v1 design).
     expect(client.getShardIterator).toHaveBeenCalledWith(
-      expect.objectContaining({ShardId: 'shard-child', ShardIteratorType: 'LATEST'})
+      expect.objectContaining({ShardId: 'shard-1', ShardIteratorType: 'LATEST'})
+    );
+    // Child shard was discovered on a LATER rescan (triggered after the parent closed) —
+    // it must use TRIM_HORIZON so records written between the split and iterator
+    // acquisition aren't silently lost.
+    expect(client.getShardIterator).toHaveBeenCalledWith(
+      expect.objectContaining({ShardId: 'shard-child', ShardIteratorType: 'TRIM_HORIZON'})
     );
   });
 
@@ -375,5 +383,137 @@ describe('StreamPoller — resilience', () => {
     await vi.advanceTimersByTimeAsync(0);
 
     expect(onEvent).toHaveBeenCalledWith({eventName: 'INSERT', image: {}});
+  });
+});
+
+describe('StreamPoller — generation-based staleness on rapid unsubscribe/resubscribe', () => {
+  it('does not spawn a duplicate reader, and discards stale records, on rapid unsubscribe -> resubscribe', async () => {
+    const client = makeClient();
+    client.describeStream.mockResolvedValue({StreamDescription: {Shards: [OPEN_SHARD]}});
+    client.getShardIterator.mockResolvedValue({ShardIterator: 'iter-1'});
+
+    let resolveStaleGetRecords!: (value: {Records?: StreamRecordLike[]; NextShardIterator?: string}) => void;
+    const staleGetRecordsPromise = new Promise<{Records?: StreamRecordLike[]; NextShardIterator?: string}>(resolve => {
+      resolveStaleGetRecords = resolve;
+    });
+    client.getRecords
+      .mockImplementationOnce(() => staleGetRecordsPromise)
+      .mockResolvedValue({Records: [], NextShardIterator: 'iter-2'});
+
+    const poller = new StreamPoller(client, 'arn:test');
+    const onEventOriginal = vi.fn();
+    const unsubscribe = poller.addListener({eventTypes: ['INSERT'], onEvent: onEventOriginal, onError: vi.fn()});
+
+    // Let the first generation's rescan acquire an iterator and call getRecords, which
+    // stays pending (simulating a suspended network call).
+    await vi.advanceTimersByTimeAsync(0);
+    expect(client.getShardIterator).toHaveBeenCalledTimes(1);
+    expect(client.getRecords).toHaveBeenCalledTimes(1);
+
+    // Last listener removed -> #stop() bumps the generation and clears #activeShards,
+    // even though the original reader is still suspended inside getRecords.
+    unsubscribe();
+
+    // Immediately resubscribe -> #start() runs again, spawning a fresh rescan for the
+    // same still-open shard.
+    const onEventNew = vi.fn();
+    poller.addListener({eventTypes: ['INSERT'], onEvent: onEventNew, onError: vi.fn()});
+
+    // Let the new generation's rescan acquire its own shard iterator and call getRecords.
+    await vi.advanceTimersByTimeAsync(0);
+    expect(client.getShardIterator).toHaveBeenCalledTimes(2);
+
+    // Now resolve the ORIGINAL (stale) getRecords call with some records.
+    resolveStaleGetRecords({
+      Records: [{eventName: 'INSERT', dynamodb: {NewImage: {id: {S: 'stale'}}}}],
+      NextShardIterator: 'iter-stale-2',
+    });
+    await vi.advanceTimersByTimeAsync(0);
+
+    // The stale reader must be a complete no-op: no dispatch to either listener, and no
+    // corrupted #activeShards state causing a third getShardIterator call.
+    expect(onEventOriginal).not.toHaveBeenCalled();
+    expect(onEventNew).not.toHaveBeenCalled();
+    expect(client.getShardIterator).toHaveBeenCalledTimes(2);
+  });
+
+  it('a stale rescan whose describeStream resolves after a stop becomes a no-op', async () => {
+    const client = makeClient();
+    let resolveDescribeStream!: (value: Awaited<ReturnType<DynamoDBStreamsLike['describeStream']>>) => void;
+    const pendingDescribeStream = new Promise<Awaited<ReturnType<DynamoDBStreamsLike['describeStream']>>>(resolve => {
+      resolveDescribeStream = resolve;
+    });
+    client.describeStream.mockReturnValueOnce(pendingDescribeStream);
+    client.describeStream.mockResolvedValue({StreamDescription: {Shards: []}});
+
+    const poller = new StreamPoller(client, 'arn:test');
+    const unsubscribe = poller.addListener({eventTypes: ['INSERT'], onEvent: vi.fn(), onError: vi.fn()});
+
+    // The first rescan's describeStream call is now in flight (pending). Stop immediately,
+    // bumping the generation before that call resolves.
+    unsubscribe();
+
+    // Resolve the stale describeStream call now that the poller has moved on.
+    resolveDescribeStream({StreamDescription: {Shards: [OPEN_SHARD]}});
+    await vi.advanceTimersByTimeAsync(0);
+
+    // The stale rescan must bail out before processing any shards.
+    expect(client.getShardIterator).not.toHaveBeenCalled();
+  });
+
+  it('a stale reader whose getRecords rejects after a stop does not dispatch the error', async () => {
+    const client = makeClient();
+    client.describeStream.mockResolvedValue({StreamDescription: {Shards: [OPEN_SHARD]}});
+    client.getShardIterator.mockResolvedValue({ShardIterator: 'iter-1'});
+
+    let rejectStaleGetRecords!: (err: unknown) => void;
+    const staleGetRecordsPromise = new Promise<Awaited<ReturnType<DynamoDBStreamsLike['getRecords']>>>(
+      (_resolve, reject) => {
+        rejectStaleGetRecords = reject;
+      }
+    );
+    client.getRecords
+      .mockImplementationOnce(() => staleGetRecordsPromise)
+      .mockResolvedValue({Records: [], NextShardIterator: 'iter-2'});
+
+    const poller = new StreamPoller(client, 'arn:test');
+    const onError = vi.fn();
+    const unsubscribe = poller.addListener({eventTypes: ['INSERT'], onEvent: vi.fn(), onError});
+
+    await vi.advanceTimersByTimeAsync(0);
+    unsubscribe();
+
+    rejectStaleGetRecords(new Error('stale failure'));
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(onError).not.toHaveBeenCalled();
+  });
+
+  it('a stale reader whose initial getShardIterator rejects after a stop does not dispatch the error', async () => {
+    const client = makeClient();
+    client.describeStream.mockResolvedValue({StreamDescription: {Shards: [OPEN_SHARD]}});
+
+    let rejectStaleGetShardIterator!: (err: unknown) => void;
+    const staleGetShardIteratorPromise = new Promise<Awaited<ReturnType<DynamoDBStreamsLike['getShardIterator']>>>(
+      (_resolve, reject) => {
+        rejectStaleGetShardIterator = reject;
+      }
+    );
+    client.getShardIterator.mockReturnValueOnce(staleGetShardIteratorPromise);
+
+    const poller = new StreamPoller(client, 'arn:test');
+    const onError = vi.fn();
+    const unsubscribe = poller.addListener({eventTypes: ['INSERT'], onEvent: vi.fn(), onError});
+
+    // Let the rescan discover the shard and start acquiring its iterator (pending).
+    await vi.advanceTimersByTimeAsync(0);
+    expect(client.getShardIterator).toHaveBeenCalledTimes(1);
+
+    unsubscribe();
+
+    rejectStaleGetShardIterator(new Error('stale iterator failure'));
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(onError).not.toHaveBeenCalled();
   });
 });

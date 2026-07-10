@@ -208,6 +208,7 @@ await subscription.close();
 - The stream is enabled/updated on the physical table lazily, on the first `subscribe()` call — not at `DataSource.initialize()` time. This requires `dynamodb:DescribeTable` and `dynamodb:UpdateTable` IAM permissions in addition to the Streams read permissions (`dynamodb:DescribeStream`, `dynamodb:GetRecords`, `dynamodb:GetShardIterator`).
 - **DynamoDB Local does not support Streams.** `subscribe()` only works against real AWS DynamoDB tables.
 - `InMemoryDataSource` / `InMemoryRepository` support the same `subscribe()` API by simulating events synchronously in-process — no AWS connection needed in tests.
+- Changing the `stream` view type on a table that already has streams enabled with a different view type is not handled automatically — AWS requires disabling and re-enabling the stream in separate calls, so you must do that manually (e.g. via the AWS console/CLI) before the next `subscribe()` call.
 
 ## Table name prefix/suffix
 
