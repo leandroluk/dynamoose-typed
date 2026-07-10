@@ -1,5 +1,15 @@
 import type {ResolvedSchema} from '#/schema';
-import type {CountOptions, FindOptions, PaginatedResult, Projected, SelectMap, WriteOptions} from '#/types';
+import type {
+  CountOptions,
+  FindOptions,
+  PaginatedResult,
+  Projected,
+  SelectMap,
+  StreamEventType,
+  SubscribeParams,
+  Subscription,
+  WriteOptions,
+} from '#/types';
 
 function projectItem<T>(item: T, select: SelectMap<T> | undefined): unknown {
   if (!select) {
@@ -12,6 +22,12 @@ function projectItem<T>(item: T, select: SelectMap<T> | undefined): unknown {
   return result;
 }
 
+interface InMemoryListener<T> {
+  eventTypes: StreamEventType[];
+  callback: (item: T) => void | Promise<void>;
+  onError: (err: unknown) => void;
+}
+
 /**
  * In-memory repository for unit testing — no DynamoDB connection required.
  * Implements the same surface as {@link Repository} so tests are portable.
@@ -19,6 +35,7 @@ function projectItem<T>(item: T, select: SelectMap<T> | undefined): unknown {
 export class InMemoryRepository<T extends object> {
   readonly #store = new Map<string, T>();
   readonly #schema: ResolvedSchema;
+  readonly #listeners = new Set<InMemoryListener<T>>();
 
   constructor(schema: ResolvedSchema) {
     this.#schema = schema;
@@ -87,10 +104,40 @@ export class InMemoryRepository<T extends object> {
     return {...data} as T;
   }
 
+  subscribe(params: SubscribeParams<T>): Subscription {
+    const {eventTypes, callback, options} = params;
+    const listener: InMemoryListener<T> = {
+      eventTypes,
+      callback,
+      onError: options?.onError ?? ((err: unknown): void => console.error('[in-memory] stream error:', err)),
+    };
+    this.#listeners.add(listener);
+    return {
+      close: async (): Promise<void> => {
+        this.#listeners.delete(listener);
+      },
+    };
+  }
+
+  async #emit(eventType: StreamEventType, item: T): Promise<void> {
+    for (const listener of this.#listeners) {
+      if (listener.eventTypes.includes(eventType)) {
+        try {
+          await listener.callback({...item});
+        } catch (err) {
+          listener.onError(err);
+        }
+      }
+    }
+  }
+
   async save(item: T, _options?: WriteOptions): Promise<T> {
     const clone = {...item} as Record<string, unknown>;
     this.#injectTimestamps(clone, true);
-    this.#store.set(this.#keyOf(clone as unknown as T), clone as unknown as T);
+    const key = this.#keyOf(clone as unknown as T);
+    const existed = this.#store.has(key);
+    this.#store.set(key, clone as unknown as T);
+    await this.#emit(existed ? 'MODIFY' : 'INSERT', clone as unknown as T);
     return clone as unknown as T;
   }
 
@@ -103,6 +150,7 @@ export class InMemoryRepository<T extends object> {
     const updated = {...existing, ...changes} as Record<string, unknown>;
     this.#injectTimestamps(updated, false);
     this.#store.set(k, updated as unknown as T);
+    await this.#emit('MODIFY', updated as unknown as T);
     return updated as unknown as T;
   }
 
@@ -203,10 +251,17 @@ export class InMemoryRepository<T extends object> {
       [this.#schema.deleteDateKey]: new Date(),
     };
     this.#store.set(k, updated as T);
+    await this.#emit('MODIFY', updated as T);
   }
 
   async hardDelete(key: Partial<T>): Promise<void> {
-    this.#store.delete(this.#keyOf(key));
+    const k = this.#keyOf(key);
+    const item = this.#store.get(k);
+    if (!item) {
+      return;
+    }
+    this.#store.delete(k);
+    await this.#emit('REMOVE', item);
   }
 
   async restore(key: Partial<T>): Promise<void> {
@@ -220,6 +275,7 @@ export class InMemoryRepository<T extends object> {
     }
     const updated = {...item, [this.#schema.deleteDateKey]: null};
     this.#store.set(k, updated as T);
+    await this.#emit('MODIFY', updated as T);
   }
 
   async batchSave(items: T[]): Promise<void> {
