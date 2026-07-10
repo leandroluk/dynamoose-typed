@@ -9,6 +9,8 @@ import type {
   PaginatedResult,
   Projected,
   SelectMap,
+  SubscribeParams,
+  Subscription,
   WriteOptions,
 } from '#/types';
 import type * as DynamoDB from '@aws-sdk/client-dynamodb';
@@ -552,5 +554,50 @@ export class Repository<T extends object> {
       const match = results.find(r => r[hashKey] === keyVal);
       return match ? this.#model.normalize(match) : undefined;
     });
+  }
+
+  /**
+   * Subscribes to live DynamoDB Streams change events for this table.
+   * Requires `stream` to be set on the entity's `@DynamoTable` decorator.
+   *
+   * The underlying stream is enabled/polled lazily and shared across every `subscribe()`
+   * call for this entity — see {@link InternalModel.getStreamPoller}.
+   */
+  subscribe(params: SubscribeParams<T>): Subscription {
+    const {eventTypes, callback, options} = params;
+    const schema = this.#model.schema;
+    if (!schema.streamViewType) {
+      throw new Error(
+        `[dynamoose-typed] "${schema.tableName}" has no stream configured. Add { stream: true } to @DynamoTable.`
+      );
+    }
+
+    const onError = options?.onError ?? ((err: unknown): void => console.error(err));
+    let unsubscribe: (() => void) | undefined;
+    let closed = false;
+
+    this.#model
+      .getStreamPoller()
+      .then(poller => {
+        if (closed) {
+          return;
+        }
+        unsubscribe = poller.addListener({
+          eventTypes,
+          onEvent: async (event): Promise<void> => {
+            const item = this.#model.normalize(event.image);
+            await callback(item);
+          },
+          onError,
+        });
+      })
+      .catch(onError);
+
+    return {
+      close: async (): Promise<void> => {
+        closed = true;
+        unsubscribe?.();
+      },
+    };
   }
 }
