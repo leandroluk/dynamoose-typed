@@ -56,7 +56,10 @@ describe('Repository.subscribe', () => {
     repo.subscribe({eventTypes: ['INSERT'], callback: vi.fn()});
     await flush();
 
-    expect(consoleError).toHaveBeenCalledWith(expect.objectContaining({message: 'bootstrap failed'}));
+    expect(consoleError).toHaveBeenCalledWith(
+      '[dynamoose-typed] stream error:',
+      expect.objectContaining({message: 'bootstrap failed'})
+    );
     consoleError.mockRestore();
   });
 

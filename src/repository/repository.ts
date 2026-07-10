@@ -572,7 +572,7 @@ export class Repository<T extends object> {
       );
     }
 
-    const onError = options?.onError ?? ((err: unknown): void => console.error(err));
+    const onError = options?.onError ?? ((err: unknown): void => console.error('[dynamoose-typed] stream error:', err));
     let unsubscribe: (() => void) | undefined;
     let closed = false;
 
