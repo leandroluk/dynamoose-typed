@@ -273,7 +273,10 @@ export class InternalModel<T extends object = object> {
    */
   getStreamPoller(): Promise<StreamPoller> {
     if (!this.#streamPollerPromise) {
-      this.#streamPollerPromise = this.#bootstrapStreamPoller();
+      this.#streamPollerPromise = this.#bootstrapStreamPoller().catch((err: unknown) => {
+        this.#streamPollerPromise = undefined;
+        throw err;
+      });
     }
     return this.#streamPollerPromise;
   }

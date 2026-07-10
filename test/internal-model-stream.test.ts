@@ -61,4 +61,29 @@ describe('InternalModel.getStreamPoller', () => {
     expect(describeTable).toHaveBeenCalledTimes(1);
     expect(streamsClientInstances).toHaveLength(1);
   });
+
+  it('retries bootstrap on subsequent calls if the first attempt fails (does not cache rejection)', async () => {
+    describeTable.mockClear();
+    describeTable.mockRejectedValueOnce(new Error('throttled'));
+    describeTable.mockResolvedValueOnce({
+      Table: {
+        LatestStreamArn: 'arn:1',
+        StreamSpecification: {StreamEnabled: true, StreamViewType: 'NEW_AND_OLD_IMAGES'},
+      },
+    });
+    streamsClientInstances.length = 0;
+
+    const model = new InternalModel(UserTable, makeStreamSchema(), {} as never);
+
+    // First call: expect the rejection
+    await expect(model.getStreamPoller()).rejects.toThrow('throttled');
+
+    // Second call on the SAME model: expect it to succeed (bootstrap retried)
+    const poller = await model.getStreamPoller();
+    expect(poller.listenerCount).toBe(0);
+
+    // Verify describeTable was called twice: once for the failed attempt, once for the successful retry
+    expect(describeTable).toHaveBeenCalledTimes(2);
+    expect(streamsClientInstances).toHaveLength(1);
+  });
 });
