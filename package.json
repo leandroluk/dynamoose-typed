@@ -71,6 +71,7 @@
   "packageManager": "pnpm@11.2.2+sha512.36e6621fad506178936455e70247b8808ef4ec25797a9f437a93281a020484e2607f6a469a22e982987c3dbb8866e3071514ab10a4a1749e06edcd1ec118436f",
   "devDependencies": {
     "@aws-sdk/client-dynamodb": "3.1052.0",
+    "@aws-sdk/util-dynamodb": "3.996.6",
     "@commitlint/cli": "21.0.1",
     "@commitlint/config-conventional": "21.0.1",
     "@commitlint/types": "21.0.1",
@@ -93,6 +94,7 @@
   },
   "peerDependencies": {
     "@aws-sdk/client-dynamodb": ">=3",
+    "@aws-sdk/util-dynamodb": ">=3",
     "dynamoose": ">=4.1.5"
   },
   "engines": {
