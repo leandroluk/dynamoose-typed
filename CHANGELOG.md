@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.9.0] - 2026-07-10
+
+### Docs
+
+- **`@VersionAttribute` / optimistic locking documented in root `README.md`** — the feature (added in 1.1.0) was only documented in the full docs site (`docs/README.md`); the npm package readme now covers it too, with the Features list, a full usage example, and the attribute decorators reference table.
+
 ## [1.8.4] - 2026-07-09
 
 ### Fixed

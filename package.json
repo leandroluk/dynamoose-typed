@@ -1,6 +1,6 @@
 {
   "name": "@leandroluk/dynamoose-typed",
-  "version": "1.8.4",
+  "version": "1.9.0",
   "description": "A strongly-typed, decorator-driven ODM wrapper around Dynamoose",
   "main": "./dist/index.cjs",
   "module": "./dist/index.mjs",

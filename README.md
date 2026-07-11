@@ -47,6 +47,7 @@ Dynamoose is a great library, but its TypeScript story is painfully lacking. The
 - Atomic transactions via `dataSource.transaction()`
 - Batch operations (`batchSave`, `batchGet`, `batchDelete`)
 - `InMemoryDataSource` for fast, zero-infrastructure unit tests
+- Optimistic locking via `@VersionAttribute` — prevents write conflicts with automatic condition checks
 - Global table name prefix/suffix — isolate environments via `DataSourceOptions.table`
 - Throughput configuration — `ON_DEMAND` or provisioned capacity via `@DynamoTable` or `DataSourceOptions.table`
 - 100% statement / branch / function coverage
@@ -320,21 +321,64 @@ await dataSource.transaction(async (tx) => {
 
 > DynamoDB limits: max 100 items per transaction, same-region only.
 
+## Optimistic locking
+
+`@VersionAttribute` adds an integer version counter to a table. On `update()`, if the `changes` object includes the version field, the library automatically:
+
+1. Adds a DynamoDB condition: `version = expectedVersion`
+2. Increments the stored value to `expectedVersion + 1`
+
+If another process modified the item between your read and write, DynamoDB rejects the update and `OptimisticLockError` is thrown.
+
+```typescript
+import { DynamoTable, StringAttribute, VersionAttribute, OptimisticLockError } from 'dynamoose-typed';
+
+@DynamoTable('products')
+class ProductTable {
+  @StringAttribute({ hashKey: true })
+  id!: string;
+
+  @StringAttribute()
+  name!: string;
+
+  @VersionAttribute()
+  version!: number; // starts at 0, auto-incremented on each update
+}
+
+const repo = dataSource.getRepository(ProductTable);
+
+// save() on a versioned table uses put-if-not-exists semantics
+const product = await repo.save({ id: 'p1', name: 'Widget', version: 0 });
+
+// update() with version: optimistic lock applied automatically
+try {
+  await repo.update({ id: 'p1' }, { name: 'Widget v2', version: 0 });
+  // if version in DB is still 0 → succeeds, DB version becomes 1
+} catch (err) {
+  if (err instanceof OptimisticLockError) {
+    // another process wrote between your read and this update
+  }
+}
+```
+
+Omitting the version field from `changes` skips the condition check entirely, making the update unconditional.
+
 ## Attribute decorators reference
 
-| Decorator                     | DynamoDB type | Notes                                                                                              |
-| ----------------------------- | ------------- | -------------------------------------------------------------------------------------------------- |
-| `@StringAttribute`            | S             | Supports `hashKey`, `rangeKey`, `minLength`, `maxLength`, `trim`, `lowercase`, `uppercase`         |
-| `@NumberAttribute`            | N             | Supports `min`, `max`                                                                              |
-| `@BooleanAttribute`           | BOOL          |                                                                                                    |
-| `@DateAttribute`              | S / N         | `format: 'epoch'` (default) or `'iso'`; `ttl: true` stores epoch **seconds** with auto transforms  |
-| `@CreateDateAttribute`        | S / N         | Set once on insert, never updated; `format: 'epoch'` (default) or `'iso'`                          |
-| `@UpdateDateAttribute`        | S / N         | Updated on every save/update; `format: 'epoch'` (default) or `'iso'`                               |
-| `@DeleteDateAttribute`        | S / N         | Set by `delete()`, cleared by `restore()`; `index: true` enables sparse-GSI `count()` optimization |
-| `@NestedAttribute(() => Doc)` | M             | Doc must be decorated with `@DynamoDocument`                                                       |
-| `@ArrayAttribute(() => Type)` | L             | Primitives or `@DynamoDocument` instances                                                          |
-| `@SetAttribute(() => Type)`   | SS / NS       | Must be a `Set<string>` or `Set<number>`                                                           |
-| `@Attribute(options)`         | any           | Raw Dynamoose attribute passthrough                                                                |
+| Decorator                     | DynamoDB type | Notes                                                                                                                |
+| ------------------------------ | ------------- | ---------------------------------------------------------------------------------------------------------------------|
+| `@StringAttribute`            | S             | Supports `hashKey`, `rangeKey`, `minLength`, `maxLength`, `trim`, `lowercase`, `uppercase`                           |
+| `@NumberAttribute`            | N             | Supports `min`, `max`                                                                                                |
+| `@BooleanAttribute`           | BOOL          |                                                                                                                       |
+| `@DateAttribute`              | S / N         | `format: 'epoch'` (default) or `'iso'`; `ttl: true` stores epoch **seconds** with auto transforms                    |
+| `@CreateDateAttribute`        | S / N         | Set once on insert, never updated; `format: 'epoch'` (default) or `'iso'`                                            |
+| `@UpdateDateAttribute`        | S / N         | Updated on every save/update; `format: 'epoch'` (default) or `'iso'`                                                 |
+| `@DeleteDateAttribute`        | S / N         | Set by `delete()`, cleared by `restore()`; `index: true` enables sparse-GSI `count()` optimization                   |
+| `@VersionAttribute`           | N             | Starts at `0`; `update()` with version field applies optimistic-lock condition and auto-increments                   |
+| `@NestedAttribute(() => Doc)` | M             | Doc must be decorated with `@DynamoDocument`                                                                         |
+| `@ArrayAttribute(() => Type)` | L             | Primitives or `@DynamoDocument` instances                                                                            |
+| `@SetAttribute(() => Type)`   | SS / NS       | Must be a `Set<string>` or `Set<number>`                                                                             |
+| `@Attribute(options)`         | any           | Raw Dynamoose attribute passthrough                                                                                  |
 
 All decorators accept an optional first argument `alias` (string) to map a TypeScript property name to a different DynamoDB attribute name:
 
