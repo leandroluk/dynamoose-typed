@@ -1,8 +1,11 @@
 import {getDocumentMeta, getTableMeta} from '#/decorators/metadata.registry';
 import type {ResolvedSchema} from '#/schema';
 import {serializeDate} from '#/schema';
+import {type DescribeUpdateTableClient, ensureStreamEnabled} from '#/streams/ensure-stream-enabled';
+import {type DynamoDBStreamsLike, StreamPoller} from '#/streams/stream-poller';
 import type {AnyRecord, StoredAttributeMeta, TableHooks} from '#/types';
-import type * as dynamoose from 'dynamoose';
+import {DynamoDBStreams} from '@aws-sdk/client-dynamodb-streams';
+import dynamoose from 'dynamoose';
 
 type TimestampKind = 'createDate' | 'updateDate' | 'deleteDate';
 
@@ -147,6 +150,7 @@ export class InternalModel<T extends object = object> {
   readonly #dModel: ReturnType<typeof dynamoose.model>;
   readonly #schema: ResolvedSchema;
   readonly #entityClass: new () => T;
+  #streamPollerPromise: Promise<StreamPoller> | undefined;
 
   constructor(entityClass: new () => T, schema: ResolvedSchema, dModel: ReturnType<typeof dynamoose.model>) {
     this.#entityClass = entityClass;
@@ -260,5 +264,32 @@ export class InternalModel<T extends object = object> {
         : (raw as unknown as AnyRecord);
     const properties = this.toPropertyObject(obj);
     return Object.assign(new this.#entityClass(), properties);
+  }
+
+  /**
+   * Returns the shared {@link StreamPoller} for this table, creating it (and enabling the
+   * physical table's DynamoDB Stream, if needed) on the first call. Every subsequent call —
+   * across every `Repository` instance for this entity — reuses the same poller.
+   */
+  getStreamPoller(): Promise<StreamPoller> {
+    if (!this.#streamPollerPromise) {
+      this.#streamPollerPromise = this.#bootstrapStreamPoller().catch((err: unknown) => {
+        this.#streamPollerPromise = undefined;
+        throw err;
+      });
+    }
+    return this.#streamPollerPromise;
+  }
+
+  async #bootstrapStreamPoller(): Promise<StreamPoller> {
+    const viewType = this.#schema.streamViewType!;
+    const ddb = dynamoose.aws.ddb();
+    const streamArn = await ensureStreamEnabled(
+      ddb as unknown as DescribeUpdateTableClient,
+      this.#schema.tableName,
+      viewType
+    );
+    const streamsClient = new DynamoDBStreams(ddb.config as never);
+    return new StreamPoller(streamsClient as unknown as DynamoDBStreamsLike, streamArn);
   }
 }

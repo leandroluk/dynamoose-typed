@@ -45,6 +45,7 @@ Dynamoose is a great library, but its TypeScript story is painfully lacking. The
 - GSI support via `index: true` or `index: { name, rangeKey, project }` on any attribute decorator
 - `count()` sparse-GSI optimization — two `Select: COUNT` scans instead of fetching item bodies
 - Atomic transactions via `dataSource.transaction()`
+- Live change observation via native DynamoDB Streams — `Repository.subscribe()`
 - Batch operations (`batchSave`, `batchGet`, `batchDelete`)
 - `InMemoryDataSource` for fast, zero-infrastructure unit tests
 - Optimistic locking via `@VersionAttribute` — prevents write conflicts with automatic condition checks
@@ -171,6 +172,44 @@ const isHealthy = await dataSource.ping();
 
 `InMemoryDataSource` also implements this method and always returns `true` to ensure API parity in tests.
 
+## Streaming changes
+
+Enable DynamoDB Streams on a table with the `stream` option, then subscribe to live changes:
+
+```typescript
+import { DynamoTable, StringAttribute } from 'dynamoose-typed';
+
+@DynamoTable('users', { stream: true }) // shorthand for 'NEW_AND_OLD_IMAGES'
+class UserTable {
+  @StringAttribute({ hashKey: true })
+  id!: string;
+
+  @StringAttribute()
+  name!: string;
+}
+
+const userRepository = dataSource.getRepository(UserTable);
+
+const subscription = userRepository.subscribe({
+  eventTypes: ['INSERT', 'MODIFY', 'REMOVE'],
+  callback: async (user) => {
+    console.log('user changed', user.id, user.name);
+  },
+  options: {
+    onError: (err) => console.error('stream error', err),
+  },
+});
+
+// on application shutdown
+await subscription.close();
+```
+
+- `INSERT` / `MODIFY` deliver the **new** item image. `REMOVE` delivers the **old** (pre-delete) item image.
+- `repo.delete()` (soft delete) is an `UpdateItem` under the hood — it fires `MODIFY`, not `REMOVE`. Only `repo.hardDelete()` fires `REMOVE`.
+- The stream is enabled/updated on the physical table lazily, on the first `subscribe()` call — not at `DataSource.initialize()` time. This requires `dynamodb:DescribeTable` and `dynamodb:UpdateTable` IAM permissions in addition to the Streams read permissions (`dynamodb:DescribeStream`, `dynamodb:GetRecords`, `dynamodb:GetShardIterator`).
+- **DynamoDB Local does not support Streams.** `subscribe()` only works against real AWS DynamoDB tables.
+- `InMemoryDataSource` / `InMemoryRepository` support the same `subscribe()` API by simulating events synchronously in-process — no AWS connection needed in tests.
+- Changing the `stream` view type on a table that already has streams enabled with a different view type is not handled automatically — AWS requires disabling and re-enabling the stream in separate calls, so you must do that manually (e.g. via the AWS console/CLI) before the next `subscribe()` call.
 
 ## Table name prefix/suffix
 
