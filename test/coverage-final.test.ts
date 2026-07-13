@@ -383,6 +383,16 @@ describe('EntityManager full surface', () => {
     expect(batchResults[0]).toBeDefined();
   });
 
+  it('subscribe() delegates to repository.subscribe', async () => {
+    vi.spyOn(dynamoose, 'model').mockReturnValue(makeMockDynamooseModel() as any);
+    const dataSource = new DataSource({entities: [UserTable, OrderTable]});
+    await dataSource.initialize();
+    const entityManager = dataSource.manager;
+    expect(() => entityManager.subscribe(UserTable, {eventTypes: ['MODIFY'], callback: vi.fn()})).toThrow(
+      /no stream configured/
+    );
+  });
+
   it('findByIndex() delegates to repository.findByIndex', async () => {
     const queryChain: Record<string, any> = {};
     for (const m of ['eq', 'using', 'limit', 'consistent', 'startAt']) {

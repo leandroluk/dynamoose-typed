@@ -6,6 +6,8 @@ import type {
   PaginatedResult,
   Projected,
   SelectMap,
+  SubscribeParams,
+  Subscription,
   ThroughputOptions,
   WriteOptions,
 } from '#/types';
@@ -205,5 +207,9 @@ export class InMemoryManager {
 
   async batchGet<T extends object>(entityClass: new () => T, keys: Partial<T>[]): Promise<(T | undefined)[]> {
     return this.#repo(entityClass).batchGet(keys);
+  }
+
+  subscribe<T extends object>(entityClass: new () => T, params: SubscribeParams<T>): Subscription {
+    return this.#repo(entityClass).subscribe(params);
   }
 }

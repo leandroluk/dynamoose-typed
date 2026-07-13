@@ -1,6 +1,10 @@
 # Changelog
 
-## [1.9.2] - 2026-07-13
+## [1.9.3] - 2026-07-13
+
+### Added
+
+- **`EntityManager.subscribe()` / `InMemoryManager.subscribe()`** — `dataSource.manager` now exposes `subscribe()`, delegating to the entity's repository, matching every other repository method already mirrored on the manager.
 
 ### Changed
 

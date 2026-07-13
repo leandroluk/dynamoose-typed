@@ -1,6 +1,15 @@
 import type {InternalModel} from '#/model/internal-model';
 import {Repository} from '#/repository/repository';
-import type {CountOptions, FindOptions, PaginatedResult, Projected, SelectMap, WriteOptions} from '#/types';
+import type {
+  CountOptions,
+  FindOptions,
+  PaginatedResult,
+  Projected,
+  SelectMap,
+  SubscribeParams,
+  Subscription,
+  WriteOptions,
+} from '#/types';
 
 /**
  * Cross-entity manager.
@@ -179,5 +188,12 @@ export class EntityManager {
    */
   async batchGet<T extends object>(entityClass: new () => T, keys: Partial<T>[]): Promise<(T | undefined)[]> {
     return this.getRepository(entityClass).batchGet(keys);
+  }
+
+  /**
+   * Subscribes to live DynamoDB Streams change events for an entity.
+   */
+  subscribe<T extends object>(entityClass: new () => T, params: SubscribeParams<T>): Subscription {
+    return this.getRepository(entityClass).subscribe(params);
   }
 }

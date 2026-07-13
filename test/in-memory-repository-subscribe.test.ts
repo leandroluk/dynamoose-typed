@@ -113,4 +113,17 @@ describe('InMemoryRepository.subscribe', () => {
     await repo.save({...alice(), name: 'Alice 3'}); // MODIFY — no longer delivered
     expect(modifyOnly).toHaveBeenCalledTimes(1);
   });
+
+  it('is also available on InMemoryManager and delegates to the same repository', async () => {
+    const received: UserTable[] = [];
+    ds.manager.subscribe(UserTable, {
+      eventTypes: ['INSERT'],
+      callback: item => void received.push(item),
+    });
+
+    await ds.getRepository(UserTable).save(alice());
+
+    expect(received).toHaveLength(1);
+    expect(received[0]!.name).toBe('Alice');
+  });
 });
