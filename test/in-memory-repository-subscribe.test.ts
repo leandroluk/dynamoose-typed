@@ -140,8 +140,8 @@ describe('InMemoryRepository.subscribe', () => {
         options: {filter: {status: {from: 'active', to: 'suspended'}}},
       });
 
-      await repo.update({id: 'u1'}, {status: 'suspended'});  // matches
-      await repo.update({id: 'u1'}, {status: 'active'});     // does not match (to: 'active' != 'suspended')
+      await repo.update({id: 'u1'}, {status: 'suspended'}); // matches
+      await repo.update({id: 'u1'}, {status: 'active'}); // does not match (to: 'active' != 'suspended')
 
       expect(received).toEqual(['suspended']);
     });

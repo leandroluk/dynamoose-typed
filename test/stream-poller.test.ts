@@ -88,7 +88,12 @@ describe('StreamPoller — happy path + listener management', () => {
     await vi.advanceTimersByTimeAsync(0);
 
     expect(onInsert).not.toHaveBeenCalled();
-    expect(onRemove).toHaveBeenCalledWith({eventId: 'evt-1', eventName: 'REMOVE', image: {id: 'u1'}, oldImage: undefined});
+    expect(onRemove).toHaveBeenCalledWith({
+      eventId: 'evt-1',
+      eventName: 'REMOVE',
+      image: {id: 'u1'},
+      oldImage: undefined,
+    });
   });
 
   it('falls back to Keys when the requested image is absent (e.g. KEYS_ONLY view)', async () => {
@@ -108,7 +113,9 @@ describe('StreamPoller — happy path + listener management', () => {
 
     await vi.advanceTimersByTimeAsync(0);
 
-    expect(onEvent).toHaveBeenCalledWith(expect.objectContaining({eventId: 'evt-1', eventName: 'MODIFY', image: {id: 'u1'}}));
+    expect(onEvent).toHaveBeenCalledWith(
+      expect.objectContaining({eventId: 'evt-1', eventName: 'MODIFY', image: {id: 'u1'}})
+    );
   });
 
   it('does not start polling until the first listener is added, and stops when the last is removed', async () => {

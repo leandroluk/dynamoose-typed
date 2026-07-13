@@ -175,7 +175,7 @@ export class InMemoryRepository<T extends object> {
     this.#injectTimestamps(clone, true);
     const key = this.#keyOf(clone as unknown as T);
     const existed = this.#store.has(key);
-    const oldItem = existed ? {...this.#store.get(key) as T} : undefined;
+    const oldItem = existed ? {...(this.#store.get(key) as T)} : undefined;
     this.#store.set(key, clone as unknown as T);
     await this.#emit(existed ? 'MODIFY' : 'INSERT', clone as unknown as T, oldItem);
     return clone as unknown as T;
@@ -187,7 +187,7 @@ export class InMemoryRepository<T extends object> {
     if (!existing) {
       throw new Error(`[in-memory] Entity not found for key: ${JSON.stringify(key)}`);
     }
-    const oldItem = {...existing} as T;
+    const oldItem = {...existing};
     const updated = {...existing, ...changes} as Record<string, unknown>;
     this.#injectTimestamps(updated, false);
     this.#store.set(k, updated as unknown as T);
@@ -287,7 +287,7 @@ export class InMemoryRepository<T extends object> {
     if (!item) {
       return;
     }
-    const oldItem = {...item} as T;
+    const oldItem = {...item};
     const updated = {
       ...item,
       [this.#schema.deleteDateKey]: new Date(),
@@ -315,7 +315,7 @@ export class InMemoryRepository<T extends object> {
     if (!item) {
       return;
     }
-    const oldItem = {...item} as T;
+    const oldItem = {...item};
     const updated = {...item, [this.#schema.deleteDateKey]: null};
     this.#store.set(k, updated as T);
     await this.#emit('MODIFY', updated as T, oldItem);
@@ -325,7 +325,7 @@ export class InMemoryRepository<T extends object> {
     for (const item of items) {
       const key = this.#keyOf(item);
       const existed = this.#store.has(key);
-      const oldItem = existed ? {...this.#store.get(key) as T} : undefined;
+      const oldItem = existed ? {...(this.#store.get(key) as T)} : undefined;
       const raw = {...item} as Record<string, unknown>;
       this.#injectTimestamps(raw, true);
       this.#store.set(key, raw as unknown as T);

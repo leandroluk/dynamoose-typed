@@ -592,7 +592,9 @@ export class Repository<T extends object> {
               eventName: event.eventName,
               approximateCreationDateTime: event.approximateCreationDateTime,
               sequenceNumber: event.sequenceNumber,
-              oldItem: event.oldImage ? this.#model.normalize(event.oldImage) as unknown as Record<string, unknown> : undefined,
+              oldItem: event.oldImage
+                ? (this.#model.normalize(event.oldImage) as unknown as Record<string, unknown>)
+                : undefined,
             }),
           onError,
         });
