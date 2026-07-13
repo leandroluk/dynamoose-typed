@@ -41,6 +41,7 @@ export interface RawStreamEvent {
   eventId: string;
   eventName: StreamEventType;
   image: Record<string, unknown>;
+  oldImage?: Record<string, unknown>;
   approximateCreationDateTime?: Date;
   sequenceNumber?: string;
 }
@@ -49,10 +50,35 @@ export interface StreamPollerListener {
   eventTypes: StreamEventType[];
   onEvent(event: RawStreamEvent): void | Promise<void>;
   onError: (err: unknown) => void;
+  filter?: Record<string, {from?: unknown | unknown[]; to?: unknown | unknown[]}>;
 }
 
 function delay(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function matchesFilter(
+  event: RawStreamEvent,
+  filter: Record<string, {from?: unknown | unknown[]; to?: unknown | unknown[]}>
+): boolean {
+  for (const [field, cond] of Object.entries(filter)) {
+    const newVal = event.image[field];
+    const oldVal = event.oldImage?.[field];
+
+    if (cond.from !== undefined) {
+      const fromValues = Array.isArray(cond.from) ? cond.from : [cond.from];
+      if (!fromValues.some(v => v === oldVal)) {
+        return false;
+      }
+    }
+    if (cond.to !== undefined) {
+      const toValues = Array.isArray(cond.to) ? cond.to : [cond.to];
+      if (!toValues.some(v => v === newVal)) {
+        return false;
+      }
+    }
+  }
+  return true;
 }
 
 /**
@@ -199,22 +225,32 @@ export class StreamPoller {
 
   #dispatchRecord(record: StreamRecordLike): void {
     const eventName = record.eventName as StreamEventType;
-    const rawImage = eventName === 'REMOVE' ? record.dynamodb?.OldImage : record.dynamodb?.NewImage;
+    const rawNewImage = record.dynamodb?.NewImage;
+    const rawOldImage = record.dynamodb?.OldImage;
+    const rawImage = eventName === 'REMOVE' ? rawOldImage : rawNewImage;
     const image = rawImage ? unmarshall(rawImage) : unmarshall(record.dynamodb?.Keys ?? {});
+    // For MODIFY events: oldImage is the item before modification.
+    // For INSERT/REMOVE: oldImage is undefined (image already carries the only available image).
+    const oldImage = eventName === 'MODIFY' && rawOldImage ? unmarshall(rawOldImage) : undefined;
     const event: RawStreamEvent = {
       eventId: record.eventID ?? '',
       eventName,
       image,
+      oldImage,
       approximateCreationDateTime: record.dynamodb?.ApproximateCreationDateTime,
       sequenceNumber: record.dynamodb?.SequenceNumber,
     };
     for (const listener of this.#listeners) {
-      if (listener.eventTypes.includes(eventName)) {
-        try {
-          Promise.resolve(listener.onEvent(event)).catch(err => listener.onError(err));
-        } catch (err) {
-          listener.onError(err);
-        }
+      if (!listener.eventTypes.includes(eventName)) {
+        continue;
+      }
+      if (listener.filter && !matchesFilter(event, listener.filter)) {
+        continue;
+      }
+      try {
+        Promise.resolve(listener.onEvent(event)).catch(err => listener.onError(err));
+      } catch (err) {
+        listener.onError(err);
       }
     }
   }

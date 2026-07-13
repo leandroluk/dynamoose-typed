@@ -35,6 +35,9 @@ export class UserTable {
   @BooleanAttribute('is_active', {default: false})
   isActive!: boolean;
 
+  @StringAttribute({default: 'active'})
+  status!: string;
+
   @NestedAttribute(() => AddressDoc)
   address?: AddressDoc;
 
