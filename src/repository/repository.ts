@@ -576,7 +576,7 @@ export class Repository<T extends object> {
     let unsubscribe: (() => void) | undefined;
     let closed = false;
 
-    this.#model
+    void this.#model
       .getStreamPoller()
       .then(poller => {
         if (closed) {
@@ -584,14 +584,11 @@ export class Repository<T extends object> {
         }
         unsubscribe = poller.addListener({
           eventTypes,
-          onEvent: async (event): Promise<void> => {
-            const item = this.#model.normalize(event.image);
-            await callback(item);
-          },
+          onEvent: async (event): Promise<void> => callback(this.#model.normalize(event.image)),
           onError,
         });
       })
-      .catch(onError);
+      .catch(err => onError(err));
 
     return {
       close: async (): Promise<void> => {
