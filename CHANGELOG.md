@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.9.2] - 2026-07-13
+
+### Changed
+
+- **`repository.subscribe()` callback now receives event metadata** — `callback: (item, meta) => ...` where `meta` is `{ eventId, eventName, approximateCreationDateTime, sequenceNumber }`. `eventId`/`sequenceNumber` come from the DynamoDB Streams record (synthetic values for `InMemoryRepository`); `eventName` lets a single callback subscribed to multiple `eventTypes` tell which change fired.
+
 ## [1.9.0] - 2026-07-10
 
 ### Docs

@@ -37,15 +37,34 @@ describe('Repository.subscribe', () => {
 
     expect(fakePoller.addListener).toHaveBeenCalledWith(expect.objectContaining({eventTypes: ['MODIFY']}));
     const listener = fakePoller.addListener.mock.calls[0]![0] as {
-      onEvent: (e: {eventName: string; image: Record<string, unknown>}) => Promise<void>;
+      onEvent: (e: {
+        eventId: string;
+        eventName: string;
+        image: Record<string, unknown>;
+        approximateCreationDateTime?: Date;
+        sequenceNumber?: string;
+      }) => Promise<void>;
     };
-    await listener.onEvent({eventName: 'MODIFY', image: {id: 'u1', name: 'Alice'}});
+    const creationDate = new Date('2026-01-01T00:00:00Z');
+    await listener.onEvent({
+      eventId: 'evt-1',
+      eventName: 'MODIFY',
+      image: {id: 'u1', name: 'Alice'},
+      approximateCreationDateTime: creationDate,
+      sequenceNumber: 'seq-1',
+    });
 
     expect(callback).toHaveBeenCalledTimes(1);
     const received = callback.mock.calls[0]![0] as UserTable;
     expect(received.id).toBe('u1');
     expect(received.name).toBe('Alice');
     expect(received).toBeInstanceOf(UserTable);
+    expect(callback.mock.calls[0]![1]).toEqual({
+      eventId: 'evt-1',
+      eventName: 'MODIFY',
+      approximateCreationDateTime: creationDate,
+      sequenceNumber: 'seq-1',
+    });
   });
 
   it('routes bootstrap failures to the default onError (console.error)', async () => {

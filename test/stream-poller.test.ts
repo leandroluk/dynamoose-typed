@@ -33,8 +33,14 @@ describe('StreamPoller — happy path + listener management', () => {
       .mockResolvedValueOnce({
         Records: [
           {
+            eventID: 'evt-1',
             eventName: 'INSERT',
-            dynamodb: {NewImage: {id: {S: 'u1'}}, Keys: {id: {S: 'u1'}}},
+            dynamodb: {
+              NewImage: {id: {S: 'u1'}},
+              Keys: {id: {S: 'u1'}},
+              ApproximateCreationDateTime: new Date('2026-01-01T00:00:00Z'),
+              SequenceNumber: 'seq-1',
+            },
           },
         ],
         NextShardIterator: 'iter-2',
@@ -53,7 +59,13 @@ describe('StreamPoller — happy path + listener management', () => {
       ShardId: 'shard-1',
       ShardIteratorType: 'LATEST',
     });
-    expect(onEvent).toHaveBeenCalledWith({eventName: 'INSERT', image: {id: 'u1'}});
+    expect(onEvent).toHaveBeenCalledWith({
+      eventId: 'evt-1',
+      eventName: 'INSERT',
+      image: {id: 'u1'},
+      approximateCreationDateTime: new Date('2026-01-01T00:00:00Z'),
+      sequenceNumber: 'seq-1',
+    });
   });
 
   it('filters events by eventTypes across multiple independent listeners', async () => {
@@ -62,7 +74,7 @@ describe('StreamPoller — happy path + listener management', () => {
     client.getShardIterator.mockResolvedValue({ShardIterator: 'iter-1'});
     client.getRecords
       .mockResolvedValueOnce({
-        Records: [{eventName: 'REMOVE', dynamodb: {OldImage: {id: {S: 'u1'}}}}],
+        Records: [{eventID: 'evt-1', eventName: 'REMOVE', dynamodb: {OldImage: {id: {S: 'u1'}}}}],
         NextShardIterator: 'iter-2',
       })
       .mockResolvedValue({Records: [], NextShardIterator: 'iter-2'});
@@ -76,7 +88,7 @@ describe('StreamPoller — happy path + listener management', () => {
     await vi.advanceTimersByTimeAsync(0);
 
     expect(onInsert).not.toHaveBeenCalled();
-    expect(onRemove).toHaveBeenCalledWith({eventName: 'REMOVE', image: {id: 'u1'}});
+    expect(onRemove).toHaveBeenCalledWith({eventId: 'evt-1', eventName: 'REMOVE', image: {id: 'u1'}});
   });
 
   it('falls back to Keys when the requested image is absent (e.g. KEYS_ONLY view)', async () => {
@@ -85,7 +97,7 @@ describe('StreamPoller — happy path + listener management', () => {
     client.getShardIterator.mockResolvedValue({ShardIterator: 'iter-1'});
     client.getRecords
       .mockResolvedValueOnce({
-        Records: [{eventName: 'MODIFY', dynamodb: {Keys: {id: {S: 'u1'}}}}],
+        Records: [{eventID: 'evt-1', eventName: 'MODIFY', dynamodb: {Keys: {id: {S: 'u1'}}}}],
         NextShardIterator: 'iter-2',
       })
       .mockResolvedValue({Records: [], NextShardIterator: 'iter-2'});
@@ -96,7 +108,7 @@ describe('StreamPoller — happy path + listener management', () => {
 
     await vi.advanceTimersByTimeAsync(0);
 
-    expect(onEvent).toHaveBeenCalledWith({eventName: 'MODIFY', image: {id: 'u1'}});
+    expect(onEvent).toHaveBeenCalledWith({eventId: 'evt-1', eventName: 'MODIFY', image: {id: 'u1'}});
   });
 
   it('does not start polling until the first listener is added, and stops when the last is removed', async () => {
@@ -382,7 +394,7 @@ describe('StreamPoller — resilience', () => {
 
     await vi.advanceTimersByTimeAsync(0);
 
-    expect(onEvent).toHaveBeenCalledWith({eventName: 'INSERT', image: {}});
+    expect(onEvent).toHaveBeenCalledWith({eventId: '', eventName: 'INSERT', image: {}});
   });
 });
 

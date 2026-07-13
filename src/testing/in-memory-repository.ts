@@ -5,6 +5,7 @@ import type {
   PaginatedResult,
   Projected,
   SelectMap,
+  StreamEventMeta,
   StreamEventType,
   SubscribeParams,
   Subscription,
@@ -24,9 +25,11 @@ function projectItem<T>(item: T, select: SelectMap<T> | undefined): unknown {
 
 interface InMemoryListener<T> {
   eventTypes: StreamEventType[];
-  callback: (item: T) => void | Promise<void>;
+  callback: (item: T, meta: StreamEventMeta) => void | Promise<void>;
   onError: (err: unknown) => void;
 }
+
+let inMemoryEventSeq = 0;
 
 /**
  * In-memory repository for unit testing — no DynamoDB connection required.
@@ -120,10 +123,17 @@ export class InMemoryRepository<T extends object> {
   }
 
   async #emit(eventType: StreamEventType, item: T): Promise<void> {
+    const seq = ++inMemoryEventSeq;
+    const meta: StreamEventMeta = {
+      eventId: `in-memory-${seq}`,
+      eventName: eventType,
+      approximateCreationDateTime: new Date(),
+      sequenceNumber: String(seq),
+    };
     for (const listener of this.#listeners) {
       if (listener.eventTypes.includes(eventType)) {
         try {
-          await listener.callback({...item});
+          await listener.callback({...item}, meta);
         } catch (err) {
           listener.onError(err);
         }

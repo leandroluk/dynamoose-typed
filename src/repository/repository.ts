@@ -584,7 +584,13 @@ export class Repository<T extends object> {
         }
         unsubscribe = poller.addListener({
           eventTypes,
-          onEvent: async (event): Promise<void> => callback(this.#model.normalize(event.image)),
+          onEvent: async (event): Promise<void> =>
+            callback(this.#model.normalize(event.image), {
+              eventId: event.eventId,
+              eventName: event.eventName,
+              approximateCreationDateTime: event.approximateCreationDateTime,
+              sequenceNumber: event.sequenceNumber,
+            }),
           onError,
         });
       })

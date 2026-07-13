@@ -15,6 +15,21 @@ export interface Subscription {
   close(): Promise<void>;
 }
 
+/** Metadata about a stream event, passed alongside the item to `SubscribeParams.callback`. */
+export interface StreamEventMeta {
+  /** The DynamoDB Streams record's `eventID` (or a synthetic id for `InMemoryRepository`). */
+  eventId: string;
+
+  /** Which change triggered this event. */
+  eventName: StreamEventType;
+
+  /** When DynamoDB applied the change (or `new Date()` for `InMemoryRepository`). */
+  approximateCreationDateTime?: Date;
+
+  /** The shard-ordered sequence number of the record (or a synthetic value for `InMemoryRepository`). */
+  sequenceNumber?: string;
+}
+
 /** Parameters accepted by `Repository.subscribe()` / `InMemoryRepository.subscribe()`. */
 export interface SubscribeParams<T> {
   /** Which DynamoDB Streams event types to listen for. */
@@ -24,7 +39,7 @@ export interface SubscribeParams<T> {
    * Invoked for each matching event.
    * `INSERT`/`MODIFY` receive the new item image; `REMOVE` receives the old (pre-delete) item image.
    */
-  callback: (item: T) => void | Promise<void>;
+  callback: (item: T, meta: StreamEventMeta) => void | Promise<void>;
 
   options?: {
     /** Invoked when the underlying stream poller (or the callback itself) throws. Defaults to `console.error`. */

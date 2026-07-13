@@ -22,11 +22,14 @@ beforeEach(() => {
 describe('InMemoryRepository.subscribe', () => {
   it('emits INSERT on save() for a new key, MODIFY on save() for an existing key', async () => {
     const repo = ds.getRepository(UserTable);
-    const events: {type: string; item: UserTable}[] = [];
+    const events: {type: string; item: UserTable; eventId: string}[] = [];
     repo.subscribe({
       eventTypes: ['INSERT', 'MODIFY'],
-      callback: item => {
-        events.push({type: events.length === 0 ? 'INSERT' : 'MODIFY', item});
+      callback: (item, meta) => {
+        expect(meta.eventName).toBe(events.length === 0 ? 'INSERT' : 'MODIFY');
+        expect(meta.approximateCreationDateTime).toBeInstanceOf(Date);
+        expect(meta.sequenceNumber).toBeTruthy();
+        events.push({type: events.length === 0 ? 'INSERT' : 'MODIFY', item, eventId: meta.eventId});
       },
     });
 
@@ -36,6 +39,9 @@ describe('InMemoryRepository.subscribe', () => {
     expect(events).toHaveLength(2);
     expect(events[0]!.item.name).toBe('Alice');
     expect(events[1]!.item.name).toBe('Alice 2');
+    expect(events[0]!.eventId).toBeTruthy();
+    expect(events[1]!.eventId).toBeTruthy();
+    expect(events[0]!.eventId).not.toBe(events[1]!.eventId);
   });
 
   it('emits MODIFY on update() and on soft delete()', async () => {

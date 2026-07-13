@@ -192,8 +192,8 @@ const userRepository = dataSource.getRepository(UserTable);
 
 const subscription = userRepository.subscribe({
   eventTypes: ['INSERT', 'MODIFY', 'REMOVE'],
-  callback: async (user) => {
-    console.log('user changed', user.id, user.name);
+  callback: async (user, meta) => {
+    console.log('user changed', user.id, user.name, meta.eventName, meta.eventId);
   },
   options: {
     onError: (err) => console.error('stream error', err),
@@ -205,6 +205,11 @@ await subscription.close();
 ```
 
 - `INSERT` / `MODIFY` deliver the **new** item image. `REMOVE` delivers the **old** (pre-delete) item image.
+- `callback` also receives `meta`, with:
+  - `eventId` — the DynamoDB Streams record's `eventID` (a synthetic id for `InMemoryRepository`). Useful for dedup/idempotency when reprocessing events.
+  - `eventName` — which change triggered the event (`INSERT` / `MODIFY` / `REMOVE`), useful when subscribing to multiple event types at once.
+  - `approximateCreationDateTime` — when DynamoDB applied the change.
+  - `sequenceNumber` — the shard-ordered sequence number of the record.
 - `repo.delete()` (soft delete) is an `UpdateItem` under the hood — it fires `MODIFY`, not `REMOVE`. Only `repo.hardDelete()` fires `REMOVE`.
 - The stream is enabled/updated on the physical table lazily, on the first `subscribe()` call — not at `DataSource.initialize()` time. This requires `dynamodb:DescribeTable` and `dynamodb:UpdateTable` IAM permissions in addition to the Streams read permissions (`dynamodb:DescribeStream`, `dynamodb:GetRecords`, `dynamodb:GetShardIterator`).
 - **DynamoDB Local does not support Streams.** `subscribe()` only works against real AWS DynamoDB tables.

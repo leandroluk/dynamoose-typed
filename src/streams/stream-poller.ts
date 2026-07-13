@@ -16,11 +16,14 @@ export interface StreamShard {
 }
 
 export interface StreamRecordLike {
+  eventID?: string;
   eventName?: string;
   dynamodb?: {
     Keys?: Record<string, AttributeValue>;
     NewImage?: Record<string, AttributeValue>;
     OldImage?: Record<string, AttributeValue>;
+    ApproximateCreationDateTime?: Date;
+    SequenceNumber?: string;
   };
 }
 
@@ -35,8 +38,11 @@ export interface DynamoDBStreamsLike {
 }
 
 export interface RawStreamEvent {
+  eventId: string;
   eventName: StreamEventType;
   image: Record<string, unknown>;
+  approximateCreationDateTime?: Date;
+  sequenceNumber?: string;
 }
 
 export interface StreamPollerListener {
@@ -195,7 +201,13 @@ export class StreamPoller {
     const eventName = record.eventName as StreamEventType;
     const rawImage = eventName === 'REMOVE' ? record.dynamodb?.OldImage : record.dynamodb?.NewImage;
     const image = rawImage ? unmarshall(rawImage) : unmarshall(record.dynamodb?.Keys ?? {});
-    const event: RawStreamEvent = {eventName, image};
+    const event: RawStreamEvent = {
+      eventId: record.eventID ?? '',
+      eventName,
+      image,
+      approximateCreationDateTime: record.dynamodb?.ApproximateCreationDateTime,
+      sequenceNumber: record.dynamodb?.SequenceNumber,
+    };
     for (const listener of this.#listeners) {
       if (listener.eventTypes.includes(eventName)) {
         try {
