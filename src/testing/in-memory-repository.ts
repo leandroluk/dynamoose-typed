@@ -7,7 +7,6 @@ import type {
   SelectMap,
   StreamEventMeta,
   StreamEventType,
-  StreamFieldCondition,
   SubscribeParams,
   Subscription,
   WriteOptions,
@@ -24,37 +23,10 @@ function projectItem<T>(item: T, select: SelectMap<T> | undefined): unknown {
   return result;
 }
 
-function isEqual(a: unknown, b: unknown): boolean {
-  if (a === b) {
-    return true;
-  }
-  if (a instanceof Date && b instanceof Date) {
-    return a.getTime() === b.getTime();
-  }
-  if (typeof a === 'object' && a !== null && typeof b === 'object' && b !== null) {
-    const keysA = Object.keys(a);
-    const keysB = Object.keys(b);
-    if (keysA.length !== keysB.length) {
-      return false;
-    }
-    for (const key of keysA) {
-      if (!Object.prototype.hasOwnProperty.call(b, key)) {
-        return false;
-      }
-      if (!isEqual((a as Record<string, unknown>)[key], (b as Record<string, unknown>)[key])) {
-        return false;
-      }
-    }
-    return true;
-  }
-  return false;
-}
-
 interface InMemoryListener<T> {
   eventTypes: StreamEventType[];
   callback: (item: T, meta: StreamEventMeta) => void | Promise<void>;
   onError: (err: unknown) => void;
-  filter?: Record<string, StreamFieldCondition>;
 }
 
 let inMemoryEventSeq = 0;
@@ -141,7 +113,6 @@ export class InMemoryRepository<T extends object> {
       eventTypes,
       callback,
       onError: options?.onError ?? ((err: unknown): void => console.error('[in-memory] stream error:', err)),
-      filter: options?.filter,
     };
     this.#listeners.add(listener);
     return {
@@ -164,30 +135,7 @@ export class InMemoryRepository<T extends object> {
       if (!listener.eventTypes.includes(eventType)) {
         continue;
       }
-      if (listener.filter) {
-        const image = item as Record<string, unknown>;
-        const oldImage = oldItem as Record<string, unknown> | undefined;
-        let match = true;
-        for (const [field, cond] of Object.entries(listener.filter)) {
-          if (cond.from !== undefined) {
-            const fromValues = Array.isArray(cond.from) ? cond.from : [cond.from];
-            if (!fromValues.some(v => isEqual(v, oldImage?.[field]))) {
-              match = false;
-              break;
-            }
-          }
-          if (cond.to !== undefined) {
-            const toValues = Array.isArray(cond.to) ? cond.to : [cond.to];
-            if (!toValues.some(v => isEqual(v, image[field]))) {
-              match = false;
-              break;
-            }
-          }
-        }
-        if (!match) {
-          continue;
-        }
-      }
+
       try {
         await listener.callback({...item}, meta);
       } catch (err) {

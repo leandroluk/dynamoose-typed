@@ -15,18 +15,6 @@ export interface Subscription {
   close(): Promise<void>;
 }
 
-/**
- * Condition for a single field in `SubscribeParams.options.filter`.
- * Only one condition should be set per entry (`from` and `to` are AND'd).
- * Each value may be a single value or an array of values (OR).
- */
-export interface StreamFieldCondition {
-  /** Expected old value(s) in `OldImage` (OR if array). Omit to match any old value. */
-  from?: unknown | unknown[];
-  /** Expected new value(s) in `NewImage` (OR if array). Omit to match any new value. */
-  to?: unknown | unknown[];
-}
-
 /** Metadata about a stream event, passed alongside the item to `SubscribeParams.callback`. */
 export interface StreamEventMeta {
   /** The DynamoDB Streams record's `eventID` (or a synthetic id for `InMemoryRepository`). */
@@ -65,27 +53,5 @@ export interface SubscribeParams<T> {
   options?: {
     /** Invoked when the underlying stream poller (or the callback itself) throws. Defaults to `console.error`. */
     onError?: (err: unknown) => void;
-
-    /**
-     * Optional declarative field-level filter.
-     * Only events matching ALL specified field conditions are delivered to the callback.
-     * Keys are entity property names (type-safe).
-     *
-     * Supports deep equality checks (e.g., matching `Date` instances, arrays, or nested objects).
-     *
-     * **Important:** Filtering using the `from` condition requires the table's `StreamViewType`
-     * to be configured as `NEW_AND_OLD_IMAGES` (or `OLD_IMAGE` for removals). If it's configured
-     * as `NEW_IMAGE`, the `from` check will fail and events will not be delivered.
-     *
-     * @example
-     * ```ts
-     * // Fire only when status changes from 'open' to 'overdue'
-     * filter: { status: { from: 'open', to: 'overdue' } }
-     *
-     * // Fire when status changes from 'open' OR 'pending' to 'overdue'
-     * filter: { status: { from: ['open', 'pending'], to: 'overdue' } }
-     * ```
-     */
-    filter?: Record<string, StreamFieldCondition>;
   };
 }

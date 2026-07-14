@@ -573,7 +573,6 @@ export class Repository<T extends object> {
     }
 
     const onError = options?.onError ?? ((err: unknown): void => console.error('[dynamoose-typed] stream error:', err));
-    const filter = options?.filter;
     let unsubscribe: (() => void) | undefined;
     let closed = false;
 
@@ -585,7 +584,6 @@ export class Repository<T extends object> {
         }
         unsubscribe = poller.addListener({
           eventTypes,
-          filter,
           onEvent: async (event): Promise<void> =>
             callback(this.#model.normalize(event.image), {
               eventId: event.eventId,
