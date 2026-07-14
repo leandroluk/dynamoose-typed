@@ -41,6 +41,7 @@ describe('Repository.subscribe', () => {
         eventId: string;
         eventName: string;
         image: Record<string, unknown>;
+        oldImage?: Record<string, unknown>;
         approximateCreationDateTime?: Date;
         sequenceNumber?: string;
       }) => Promise<void>;
@@ -49,7 +50,8 @@ describe('Repository.subscribe', () => {
     await listener.onEvent({
       eventId: 'evt-1',
       eventName: 'MODIFY',
-      image: {id: 'u1', name: 'Alice'},
+      image: {id: 'u1', name: 'Alice', status: 'overdue'},
+      oldImage: {id: 'u1', name: 'Alice', status: 'active'},
       approximateCreationDateTime: creationDate,
       sequenceNumber: 'seq-1',
     });
@@ -64,6 +66,7 @@ describe('Repository.subscribe', () => {
       eventName: 'MODIFY',
       approximateCreationDateTime: creationDate,
       sequenceNumber: 'seq-1',
+      oldItem: {id: 'u1', name: 'Alice', status: 'active'},
     });
   });
 
@@ -116,5 +119,55 @@ describe('Repository.subscribe', () => {
     await subscription.close();
 
     expect(unsubscribe).toHaveBeenCalledTimes(1);
+  });
+
+  it('passes filter from SubscribeParams.options to StreamPollerListener', async () => {
+    const {repo, model} = makeRepo({streamViewType: 'NEW_AND_OLD_IMAGES'});
+    const fakePoller = {addListener: vi.fn().mockReturnValue(vi.fn()), listenerCount: 0};
+    vi.spyOn(model, 'getStreamPoller').mockResolvedValue(fakePoller as never);
+
+    const callback = vi.fn();
+    repo.subscribe({
+      eventTypes: ['MODIFY'],
+      callback,
+      options: {filter: {status: {from: 'open', to: 'overdue'}}},
+    });
+    await flush();
+
+    expect(fakePoller.addListener).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventTypes: ['MODIFY'],
+        filter: {status: {from: 'open', to: 'overdue'}},
+      })
+    );
+  });
+
+  it('sets oldItem to undefined when stream record has no OldImage (NEW_IMAGE view type)', async () => {
+    const {repo, model} = makeRepo({streamViewType: 'NEW_IMAGE'});
+    const fakePoller = {addListener: vi.fn().mockReturnValue(vi.fn()), listenerCount: 0};
+    vi.spyOn(model, 'getStreamPoller').mockResolvedValue(fakePoller as never);
+
+    const callback = vi.fn();
+    repo.subscribe({eventTypes: ['MODIFY'], callback});
+    await flush();
+
+    const listener = fakePoller.addListener.mock.calls[0]![0] as {
+      onEvent: (e: {
+        eventId: string;
+        eventName: string;
+        image: Record<string, unknown>;
+        oldImage?: Record<string, unknown>;
+      }) => Promise<void>;
+    };
+    await listener.onEvent({
+      eventId: 'evt-1',
+      eventName: 'MODIFY',
+      image: {id: 'u1', status: 'overdue'},
+      // no oldImage — simulating NEW_IMAGE view type
+    });
+
+    expect(callback).toHaveBeenCalledTimes(1);
+    const [, meta] = callback.mock.calls[0]!;
+    expect(meta.oldItem).toBeUndefined();
   });
 });

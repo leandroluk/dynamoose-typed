@@ -9,6 +9,7 @@ const alice = (): UserTable => ({
   name: 'Alice',
   age: 30,
   isActive: true,
+  status: 'active',
   hobbies: [],
   createdAt: new Date(),
   updatedAt: new Date(),
@@ -125,5 +126,104 @@ describe('InMemoryRepository.subscribe', () => {
 
     expect(received).toHaveLength(1);
     expect(received[0]!.name).toBe('Alice');
+  });
+
+  describe('InMemoryRepository.subscribe with filter', () => {
+    it('delivers MODIFY only when filter condition matches from/to', async () => {
+      const repo = ds.getRepository(UserTable);
+      await repo.save(alice());
+
+      const received: string[] = [];
+      repo.subscribe({
+        eventTypes: ['MODIFY'],
+        callback: item => void received.push(item.status),
+        options: {filter: {status: {from: 'active', to: 'suspended'}}},
+      });
+
+      await repo.update({id: 'u1'}, {status: 'suspended'}); // matches
+      await repo.update({id: 'u1'}, {status: 'active'}); // does not match (to: 'active' != 'suspended')
+
+      expect(received).toEqual(['suspended']);
+    });
+
+    it('delivers MODIFY when from is an array (OR) and one value matches', async () => {
+      const repo = ds.getRepository(UserTable);
+      await repo.save(alice());
+
+      const received: string[] = [];
+      repo.subscribe({
+        eventTypes: ['MODIFY'],
+        callback: item => void received.push(item.status),
+        options: {filter: {status: {from: ['active', 'pending'], to: 'suspended'}}},
+      });
+
+      await repo.update({id: 'u1'}, {status: 'suspended'});
+
+      expect(received).toEqual(['suspended']);
+    });
+
+    it('does not deliver when from does not match', async () => {
+      const repo = ds.getRepository(UserTable);
+      await repo.save(alice());
+
+      const callback = vi.fn();
+      repo.subscribe({
+        eventTypes: ['MODIFY'],
+        callback,
+        options: {filter: {status: {from: 'banned', to: 'suspended'}}},
+      });
+
+      await repo.update({id: 'u1'}, {status: 'suspended'});
+
+      expect(callback).not.toHaveBeenCalled();
+    });
+
+    it('does not deliver when to does not match', async () => {
+      const repo = ds.getRepository(UserTable);
+      await repo.save(alice());
+
+      const callback = vi.fn();
+      repo.subscribe({
+        eventTypes: ['MODIFY'],
+        callback,
+        options: {filter: {status: {from: 'active', to: 'deleted'}}},
+      });
+
+      await repo.update({id: 'u1'}, {status: 'suspended'});
+
+      expect(callback).not.toHaveBeenCalled();
+    });
+
+    it('delivers INSERT events regardless of filter (from check fails gracefully)', async () => {
+      const repo = ds.getRepository(UserTable);
+      const callback = vi.fn();
+      repo.subscribe({
+        eventTypes: ['INSERT'],
+        callback,
+        options: {filter: {status: {from: 'active', to: 'active'}}},
+      });
+
+      await repo.save(alice());
+
+      // INSERT has no oldItem, so 'from' check fails — no delivery
+      expect(callback).not.toHaveBeenCalled();
+    });
+
+    it('delivers REMOVE events regardless of filter (no oldImage for comparison)', async () => {
+      const repo = ds.getRepository(UserTable);
+      await repo.save(alice());
+
+      const callback = vi.fn();
+      repo.subscribe({
+        eventTypes: ['REMOVE'],
+        callback,
+        options: {filter: {status: {from: 'active'}}},
+      });
+
+      await repo.hardDelete({id: 'u1'});
+
+      // REMOVE: image is the old item, but oldImage in meta is undefined, from check fails
+      expect(callback).not.toHaveBeenCalled();
+    });
   });
 });

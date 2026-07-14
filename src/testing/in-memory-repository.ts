@@ -7,6 +7,7 @@ import type {
   SelectMap,
   StreamEventMeta,
   StreamEventType,
+  StreamFieldCondition,
   SubscribeParams,
   Subscription,
   WriteOptions,
@@ -27,6 +28,7 @@ interface InMemoryListener<T> {
   eventTypes: StreamEventType[];
   callback: (item: T, meta: StreamEventMeta) => void | Promise<void>;
   onError: (err: unknown) => void;
+  filter?: Record<string, StreamFieldCondition>;
 }
 
 let inMemoryEventSeq = 0;
@@ -113,6 +115,7 @@ export class InMemoryRepository<T extends object> {
       eventTypes,
       callback,
       onError: options?.onError ?? ((err: unknown): void => console.error('[in-memory] stream error:', err)),
+      filter: options?.filter,
     };
     this.#listeners.add(listener);
     return {
@@ -122,21 +125,47 @@ export class InMemoryRepository<T extends object> {
     };
   }
 
-  async #emit(eventType: StreamEventType, item: T): Promise<void> {
+  async #emit(eventType: StreamEventType, item: T, oldItem?: T): Promise<void> {
     const seq = ++inMemoryEventSeq;
     const meta: StreamEventMeta = {
       eventId: `in-memory-${seq}`,
       eventName: eventType,
       approximateCreationDateTime: new Date(),
       sequenceNumber: String(seq),
+      oldItem: oldItem as Record<string, unknown> | undefined,
     };
     for (const listener of this.#listeners) {
-      if (listener.eventTypes.includes(eventType)) {
-        try {
-          await listener.callback({...item}, meta);
-        } catch (err) {
-          listener.onError(err);
+      if (!listener.eventTypes.includes(eventType)) {
+        continue;
+      }
+      if (listener.filter) {
+        const image = item as Record<string, unknown>;
+        const oldImage = oldItem as Record<string, unknown> | undefined;
+        let match = true;
+        for (const [field, cond] of Object.entries(listener.filter)) {
+          if (cond.from !== undefined) {
+            const fromValues = Array.isArray(cond.from) ? cond.from : [cond.from];
+            if (!fromValues.some(v => v === oldImage?.[field])) {
+              match = false;
+              break;
+            }
+          }
+          if (cond.to !== undefined) {
+            const toValues = Array.isArray(cond.to) ? cond.to : [cond.to];
+            if (!toValues.some(v => v === image[field])) {
+              match = false;
+              break;
+            }
+          }
         }
+        if (!match) {
+          continue;
+        }
+      }
+      try {
+        await listener.callback({...item}, meta);
+      } catch (err) {
+        listener.onError(err);
       }
     }
   }
@@ -146,8 +175,9 @@ export class InMemoryRepository<T extends object> {
     this.#injectTimestamps(clone, true);
     const key = this.#keyOf(clone as unknown as T);
     const existed = this.#store.has(key);
+    const oldItem = existed ? {...(this.#store.get(key) as T)} : undefined;
     this.#store.set(key, clone as unknown as T);
-    await this.#emit(existed ? 'MODIFY' : 'INSERT', clone as unknown as T);
+    await this.#emit(existed ? 'MODIFY' : 'INSERT', clone as unknown as T, oldItem);
     return clone as unknown as T;
   }
 
@@ -157,10 +187,11 @@ export class InMemoryRepository<T extends object> {
     if (!existing) {
       throw new Error(`[in-memory] Entity not found for key: ${JSON.stringify(key)}`);
     }
+    const oldItem = {...existing};
     const updated = {...existing, ...changes} as Record<string, unknown>;
     this.#injectTimestamps(updated, false);
     this.#store.set(k, updated as unknown as T);
-    await this.#emit('MODIFY', updated as unknown as T);
+    await this.#emit('MODIFY', updated as unknown as T, oldItem);
     return updated as unknown as T;
   }
 
@@ -256,12 +287,13 @@ export class InMemoryRepository<T extends object> {
     if (!item) {
       return;
     }
+    const oldItem = {...item};
     const updated = {
       ...item,
       [this.#schema.deleteDateKey]: new Date(),
     };
     this.#store.set(k, updated as T);
-    await this.#emit('MODIFY', updated as T);
+    await this.#emit('MODIFY', updated as T, oldItem);
   }
 
   async hardDelete(key: Partial<T>): Promise<void> {
@@ -271,7 +303,7 @@ export class InMemoryRepository<T extends object> {
       return;
     }
     this.#store.delete(k);
-    await this.#emit('REMOVE', item);
+    await this.#emit('REMOVE', item, undefined);
   }
 
   async restore(key: Partial<T>): Promise<void> {
@@ -283,14 +315,21 @@ export class InMemoryRepository<T extends object> {
     if (!item) {
       return;
     }
+    const oldItem = {...item};
     const updated = {...item, [this.#schema.deleteDateKey]: null};
     this.#store.set(k, updated as T);
-    await this.#emit('MODIFY', updated as T);
+    await this.#emit('MODIFY', updated as T, oldItem);
   }
 
   async batchSave(items: T[]): Promise<void> {
     for (const item of items) {
-      await this.save(item);
+      const key = this.#keyOf(item);
+      const existed = this.#store.has(key);
+      const oldItem = existed ? {...(this.#store.get(key) as T)} : undefined;
+      const raw = {...item} as Record<string, unknown>;
+      this.#injectTimestamps(raw, true);
+      this.#store.set(key, raw as unknown as T);
+      await this.#emit(existed ? 'MODIFY' : 'INSERT', raw as unknown as T, oldItem);
     }
   }
 
