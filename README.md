@@ -210,11 +210,32 @@ await subscription.close();
   - `eventName` — which change triggered the event (`INSERT` / `MODIFY` / `REMOVE`), useful when subscribing to multiple event types at once.
   - `approximateCreationDateTime` — when DynamoDB applied the change.
   - `sequenceNumber` — the shard-ordered sequence number of the record.
+  - `oldItem` — the item image prior to the change. Populated for `MODIFY` and `REMOVE` events if the table's stream view type supports old images (`NEW_AND_OLD_IMAGES` or `OLD_IMAGE`).
 - `repo.delete()` (soft delete) is an `UpdateItem` under the hood — it fires `MODIFY`, not `REMOVE`. Only `repo.hardDelete()` fires `REMOVE`.
 - The stream is enabled/updated on the physical table lazily, on the first `subscribe()` call — not at `DataSource.initialize()` time. This requires `dynamodb:DescribeTable` and `dynamodb:UpdateTable` IAM permissions in addition to the Streams read permissions (`dynamodb:DescribeStream`, `dynamodb:GetRecords`, `dynamodb:GetShardIterator`).
 - **DynamoDB Local does not support Streams.** `subscribe()` only works against real AWS DynamoDB tables.
 - `InMemoryDataSource` / `InMemoryRepository` support the same `subscribe()` API by simulating events synchronously in-process — no AWS connection needed in tests.
 - Changing the `stream` view type on a table that already has streams enabled with a different view type is not handled automatically — AWS requires disabling and re-enabling the stream in separate calls, so you must do that manually (e.g. via the AWS console/CLI) before the next `subscribe()` call.
+
+### Declarative field-level filtering
+
+You can filter events at the field level using the `filter` option inside `options`:
+
+```typescript
+const subscription = userRepository.subscribe({
+  eventTypes: ['MODIFY'],
+  callback: async (user, meta) => { ... },
+  options: {
+    filter: {
+      status: { from: 'open', to: 'overdue' }, // filter by transition
+      role: { to: ['admin', 'manager'] }      // supports array (OR) matches
+    }
+  }
+});
+```
+
+- **Deep Equality:** The filter supports deep comparison of nested attributes, arrays, and native `Date` instances.
+- **StreamViewType Requirement:** Filtering by the `from` condition requires the table's `stream` configuration (or `StreamViewType`) to be set to `NEW_AND_OLD_IMAGES` (or `OLD_IMAGE` for `REMOVE` events) so that the DynamoDB Streams record contains the old image. If it's configured as `NEW_IMAGE`, the `from` checks will fail because the old state is not provided by AWS.
 
 ## Table name prefix/suffix
 
