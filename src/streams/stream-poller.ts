@@ -57,6 +57,32 @@ function delay(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+function isEqual(a: unknown, b: unknown): boolean {
+  if (a === b) {
+    return true;
+  }
+  if (a instanceof Date && b instanceof Date) {
+    return a.getTime() === b.getTime();
+  }
+  if (typeof a === 'object' && a !== null && typeof b === 'object' && b !== null) {
+    const keysA = Object.keys(a);
+    const keysB = Object.keys(b);
+    if (keysA.length !== keysB.length) {
+      return false;
+    }
+    for (const key of keysA) {
+      if (!Object.prototype.hasOwnProperty.call(b, key)) {
+        return false;
+      }
+      if (!isEqual((a as Record<string, unknown>)[key], (b as Record<string, unknown>)[key])) {
+        return false;
+      }
+    }
+    return true;
+  }
+  return false;
+}
+
 function matchesFilter(
   event: RawStreamEvent,
   filter: Record<string, {from?: unknown | unknown[]; to?: unknown | unknown[]}>
@@ -67,13 +93,13 @@ function matchesFilter(
 
     if (cond.from !== undefined) {
       const fromValues = Array.isArray(cond.from) ? cond.from : [cond.from];
-      if (!fromValues.some(v => v === oldVal)) {
+      if (!fromValues.some(v => isEqual(v, oldVal))) {
         return false;
       }
     }
     if (cond.to !== undefined) {
       const toValues = Array.isArray(cond.to) ? cond.to : [cond.to];
-      if (!toValues.some(v => v === newVal)) {
+      if (!toValues.some(v => isEqual(v, newVal))) {
         return false;
       }
     }
@@ -229,9 +255,10 @@ export class StreamPoller {
     const rawOldImage = record.dynamodb?.OldImage;
     const rawImage = eventName === 'REMOVE' ? rawOldImage : rawNewImage;
     const image = rawImage ? unmarshall(rawImage) : unmarshall(record.dynamodb?.Keys ?? {});
-    // For MODIFY events: oldImage is the item before modification.
-    // For INSERT/REMOVE: oldImage is undefined (image already carries the only available image).
-    const oldImage = eventName === 'MODIFY' && rawOldImage ? unmarshall(rawOldImage) : undefined;
+    // For MODIFY and REMOVE events: oldImage is the item before change/deletion.
+    // For INSERT: oldImage is undefined (no previous state exists).
+    const oldImage =
+      (eventName === 'MODIFY' || eventName === 'REMOVE') && rawOldImage ? unmarshall(rawOldImage) : undefined;
     const event: RawStreamEvent = {
       eventId: record.eventID ?? '',
       eventName,

@@ -92,7 +92,7 @@ describe('StreamPoller — happy path + listener management', () => {
       eventId: 'evt-1',
       eventName: 'REMOVE',
       image: {id: 'u1'},
-      oldImage: undefined,
+      oldImage: {id: 'u1'},
     });
   });
 
@@ -471,7 +471,7 @@ describe('StreamPoller — resilience', () => {
     expect(call.oldImage).toBeUndefined();
   });
 
-  it('sets oldImage to undefined for REMOVE events (image is the old image, no comparison needed)', async () => {
+  it('populates oldImage for REMOVE events when OldImage is present', async () => {
     const client = makeClient();
     client.describeStream.mockResolvedValue({StreamDescription: {Shards: [OPEN_SHARD]}});
     client.getShardIterator.mockResolvedValue({ShardIterator: 'iter-1'});
@@ -500,7 +500,7 @@ describe('StreamPoller — resilience', () => {
     const call = onEvent.mock.calls[0]![0] as Record<string, unknown>;
     expect(call.eventName).toBe('REMOVE');
     expect(call.image).toEqual({id: 'u1', status: 'deleted'});
-    expect(call.oldImage).toBeUndefined();
+    expect(call.oldImage).toEqual({id: 'u1', status: 'deleted'});
   });
 
   it('filters MODIFY events by field condition (from + to)', async () => {
@@ -738,6 +738,55 @@ describe('StreamPoller — resilience', () => {
       onEvent: nonMatching,
       onError: vi.fn(),
       filter: {status: {from: 'open', to: ['cancelled']}}, // to is array, no match
+    });
+
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(matching).toHaveBeenCalledTimes(1);
+    expect(nonMatching).not.toHaveBeenCalled();
+  });
+
+  it('filters deep equality values (nested objects)', async () => {
+    const client = makeClient();
+    client.describeStream.mockResolvedValue({StreamDescription: {Shards: [OPEN_SHARD]}});
+    client.getShardIterator.mockResolvedValue({ShardIterator: 'iter-1'});
+    client.getRecords
+      .mockResolvedValueOnce({
+        Records: [
+          {
+            eventID: 'evt-1',
+            eventName: 'MODIFY',
+            dynamodb: {
+              Keys: {id: {S: 'u1'}},
+              OldImage: {id: {S: 'u1'}, meta: {M: {tag: {S: 'old'}}}},
+              NewImage: {id: {S: 'u1'}, meta: {M: {tag: {S: 'new'}}}},
+            },
+          },
+        ],
+        NextShardIterator: 'iter-2',
+      })
+      .mockResolvedValue({Records: [], NextShardIterator: 'iter-2'});
+
+    const poller = new StreamPoller(client, 'arn:test');
+    const matching = vi.fn();
+    const nonMatching = vi.fn();
+
+    poller.addListener({
+      eventTypes: ['MODIFY'],
+      onEvent: matching,
+      onError: vi.fn(),
+      filter: {
+        meta: {from: {tag: 'old'}, to: {tag: 'new'}},
+      },
+    });
+
+    poller.addListener({
+      eventTypes: ['MODIFY'],
+      onEvent: nonMatching,
+      onError: vi.fn(),
+      filter: {
+        meta: {to: {tag: 'incorrect'}},
+      },
     });
 
     await vi.advanceTimersByTimeAsync(0);

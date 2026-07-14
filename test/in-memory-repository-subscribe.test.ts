@@ -209,7 +209,7 @@ describe('InMemoryRepository.subscribe', () => {
       expect(callback).not.toHaveBeenCalled();
     });
 
-    it('delivers REMOVE events regardless of filter (no oldImage for comparison)', async () => {
+    it('delivers REMOVE events when filter condition matches old item', async () => {
       const repo = ds.getRepository(UserTable);
       await repo.save(alice());
 
@@ -222,8 +222,64 @@ describe('InMemoryRepository.subscribe', () => {
 
       await repo.hardDelete({id: 'u1'});
 
-      // REMOVE: image is the old item, but oldImage in meta is undefined, from check fails
+      expect(callback).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not deliver REMOVE events when filter condition does not match old item', async () => {
+      const repo = ds.getRepository(UserTable);
+      await repo.save(alice());
+
+      const callback = vi.fn();
+      repo.subscribe({
+        eventTypes: ['REMOVE'],
+        callback,
+        options: {filter: {status: {from: 'suspended'}}},
+      });
+
+      await repo.hardDelete({id: 'u1'});
+
       expect(callback).not.toHaveBeenCalled();
+    });
+
+    it('delivers MODIFY when date fields or nested objects match deep equality', async () => {
+      const repo = ds.getRepository(UserTable);
+      const date1 = new Date('2026-01-01T00:00:00.000Z');
+
+      const item = alice();
+      item.createdAt = date1;
+      item.address = {street: 'Main St', city: 'Metropolis'};
+      await repo.save(item);
+
+      const received: UserTable[] = [];
+      repo.subscribe({
+        eventTypes: ['MODIFY'],
+        callback: i => void received.push(i),
+        options: {
+          filter: {
+            createdAt: {from: date1, to: date1},
+            address: {to: {street: 'Main St', city: 'Metropolis'}},
+          },
+        },
+      });
+
+      // Modify something else (age), dates/address stay the same -> should match
+      await repo.update({id: 'u1'}, {age: 31});
+      expect(received).toHaveLength(1);
+
+      // Modify address -> should not match if we filter by to: previous address
+      const received2: UserTable[] = [];
+      repo.subscribe({
+        eventTypes: ['MODIFY'],
+        callback: i => void received2.push(i),
+        options: {
+          filter: {
+            address: {to: {street: 'Main St', city: 'Metropolis'}},
+          },
+        },
+      });
+
+      await repo.update({id: 'u1'}, {address: {street: 'Broadway', city: 'Metropolis'}});
+      expect(received2).toHaveLength(0); // address updated, no longer matches
     });
   });
 });

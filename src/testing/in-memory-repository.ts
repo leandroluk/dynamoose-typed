@@ -24,6 +24,32 @@ function projectItem<T>(item: T, select: SelectMap<T> | undefined): unknown {
   return result;
 }
 
+function isEqual(a: unknown, b: unknown): boolean {
+  if (a === b) {
+    return true;
+  }
+  if (a instanceof Date && b instanceof Date) {
+    return a.getTime() === b.getTime();
+  }
+  if (typeof a === 'object' && a !== null && typeof b === 'object' && b !== null) {
+    const keysA = Object.keys(a);
+    const keysB = Object.keys(b);
+    if (keysA.length !== keysB.length) {
+      return false;
+    }
+    for (const key of keysA) {
+      if (!Object.prototype.hasOwnProperty.call(b, key)) {
+        return false;
+      }
+      if (!isEqual((a as Record<string, unknown>)[key], (b as Record<string, unknown>)[key])) {
+        return false;
+      }
+    }
+    return true;
+  }
+  return false;
+}
+
 interface InMemoryListener<T> {
   eventTypes: StreamEventType[];
   callback: (item: T, meta: StreamEventMeta) => void | Promise<void>;
@@ -145,14 +171,14 @@ export class InMemoryRepository<T extends object> {
         for (const [field, cond] of Object.entries(listener.filter)) {
           if (cond.from !== undefined) {
             const fromValues = Array.isArray(cond.from) ? cond.from : [cond.from];
-            if (!fromValues.some(v => v === oldImage?.[field])) {
+            if (!fromValues.some(v => isEqual(v, oldImage?.[field]))) {
               match = false;
               break;
             }
           }
           if (cond.to !== undefined) {
             const toValues = Array.isArray(cond.to) ? cond.to : [cond.to];
-            if (!toValues.some(v => v === image[field])) {
+            if (!toValues.some(v => isEqual(v, image[field]))) {
               match = false;
               break;
             }
@@ -303,7 +329,7 @@ export class InMemoryRepository<T extends object> {
       return;
     }
     this.#store.delete(k);
-    await this.#emit('REMOVE', item, undefined);
+    await this.#emit('REMOVE', item, item);
   }
 
   async restore(key: Partial<T>): Promise<void> {

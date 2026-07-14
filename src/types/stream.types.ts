@@ -42,8 +42,8 @@ export interface StreamEventMeta {
   sequenceNumber?: string;
 
   /**
-   * The item before the change — only populated for `MODIFY` events when the table is configured
-   * with `NEW_AND_OLD_IMAGES` or `OLD_IMAGE` view type.
+   * The item before the change — populated for `MODIFY` and `REMOVE` events when the table is
+   * configured with `NEW_AND_OLD_IMAGES` or `OLD_IMAGE` view type.
    * - `INSERT`: always `undefined`
    * - `MODIFY`: the item before modification
    * - `REMOVE`: the (pre-delete) item (same as the first callback argument)
@@ -70,6 +70,12 @@ export interface SubscribeParams<T> {
      * Optional declarative field-level filter.
      * Only events matching ALL specified field conditions are delivered to the callback.
      * Keys are entity property names (type-safe).
+     *
+     * Supports deep equality checks (e.g., matching `Date` instances, arrays, or nested objects).
+     *
+     * **Important:** Filtering using the `from` condition requires the table's `StreamViewType`
+     * to be configured as `NEW_AND_OLD_IMAGES` (or `OLD_IMAGE` for removals). If it's configured
+     * as `NEW_IMAGE`, the `from` check will fail and events will not be delivered.
      *
      * @example
      * ```ts
