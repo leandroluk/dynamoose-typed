@@ -1,5 +1,19 @@
 import {StreamPoller, type DynamoDBStreamsLike, type StreamRecordLike} from '#/streams/stream-poller';
 import {afterEach, beforeEach, describe, expect, it, vi, type Mock} from 'vitest';
+import type * as utilDynamoDb from '@aws-sdk/util-dynamodb';
+
+vi.mock('@aws-sdk/util-dynamodb', async importOriginal => {
+  const original = await importOriginal<typeof utilDynamoDb>();
+  return {
+    ...original,
+    unmarshall: (val: any) => {
+      if (val && val.__test_custom_image) {
+        return val.__test_custom_image;
+      }
+      return original.unmarshall(val);
+    },
+  };
+});
 
 function makeClient(): DynamoDBStreamsLike & {
   describeStream: Mock<DynamoDBStreamsLike['describeStream']>;
@@ -746,10 +760,14 @@ describe('StreamPoller — resilience', () => {
     expect(nonMatching).not.toHaveBeenCalled();
   });
 
-  it('filters deep equality values (nested objects)', async () => {
+  it('filters deep equality values (nested objects, Dates, and unmatched keys)', async () => {
     const client = makeClient();
     client.describeStream.mockResolvedValue({StreamDescription: {Shards: [OPEN_SHARD]}});
     client.getShardIterator.mockResolvedValue({ShardIterator: 'iter-1'});
+
+    const date1 = new Date('2026-01-01T00:00:00.000Z');
+    const date2 = new Date('2026-01-02T00:00:00.000Z');
+
     client.getRecords
       .mockResolvedValueOnce({
         Records: [
@@ -758,8 +776,20 @@ describe('StreamPoller — resilience', () => {
             eventName: 'MODIFY',
             dynamodb: {
               Keys: {id: {S: 'u1'}},
-              OldImage: {id: {S: 'u1'}, meta: {M: {tag: {S: 'old'}}}},
-              NewImage: {id: {S: 'u1'}, meta: {M: {tag: {S: 'new'}}}},
+              OldImage: {
+                __test_custom_image: {
+                  id: 'u1',
+                  created: date1,
+                  meta: {tag: 'old'},
+                },
+              } as any,
+              NewImage: {
+                __test_custom_image: {
+                  id: 'u1',
+                  created: date1,
+                  meta: {tag: 'new'},
+                },
+              } as any,
             },
           },
         ],
@@ -768,31 +798,71 @@ describe('StreamPoller — resilience', () => {
       .mockResolvedValue({Records: [], NextShardIterator: 'iter-2'});
 
     const poller = new StreamPoller(client, 'arn:test');
-    const matching = vi.fn();
-    const nonMatching = vi.fn();
 
+    const matching = vi.fn();
+    const nonMatchingDate = vi.fn();
+    const nonMatchingLength = vi.fn();
+    const nonMatchingKeys = vi.fn();
+    const nonMatchingValues = vi.fn();
+
+    // 1. Matches successfully
     poller.addListener({
       eventTypes: ['MODIFY'],
       onEvent: matching,
       onError: vi.fn(),
       filter: {
+        created: {from: date1, to: date1},
         meta: {from: {tag: 'old'}, to: {tag: 'new'}},
       },
     });
 
+    // 2. Fails to match because date is different
     poller.addListener({
       eventTypes: ['MODIFY'],
-      onEvent: nonMatching,
+      onEvent: nonMatchingDate,
       onError: vi.fn(),
       filter: {
-        meta: {to: {tag: 'incorrect'}},
+        created: {to: date2},
+      },
+    });
+
+    // 3. Fails to match because object keys length is different
+    poller.addListener({
+      eventTypes: ['MODIFY'],
+      onEvent: nonMatchingLength,
+      onError: vi.fn(),
+      filter: {
+        meta: {to: {tag: 'new', other: 1}},
+      },
+    });
+
+    // 4. Fails to match because object keys do not match
+    poller.addListener({
+      eventTypes: ['MODIFY'],
+      onEvent: nonMatchingKeys,
+      onError: vi.fn(),
+      filter: {
+        meta: {to: {otherTag: 'new'}},
+      },
+    });
+
+    // 5. Fails to match because key values inside object do not match
+    poller.addListener({
+      eventTypes: ['MODIFY'],
+      onEvent: nonMatchingValues,
+      onError: vi.fn(),
+      filter: {
+        meta: {to: {tag: 'incorrect_value'}},
       },
     });
 
     await vi.advanceTimersByTimeAsync(0);
 
     expect(matching).toHaveBeenCalledTimes(1);
-    expect(nonMatching).not.toHaveBeenCalled();
+    expect(nonMatchingDate).not.toHaveBeenCalled();
+    expect(nonMatchingLength).not.toHaveBeenCalled();
+    expect(nonMatchingKeys).not.toHaveBeenCalled();
+    expect(nonMatchingValues).not.toHaveBeenCalled();
   });
 });
 
