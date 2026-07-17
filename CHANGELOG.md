@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.10.3] - 2026-07-17
+
+### Fixed
+
+- **`.d.ts` output now adds `.js` extensions to local relative imports** — consumers with `moduleResolution: "NodeNext"` in their tsconfig could not resolve the published declarations without explicit file extensions. The `scripts/fix-dts-aliases.mjs` rewrite script now appends `.js` or `/index.js` to every local relative import specifier in the emitted `.d.ts` files.
+
+### Changed
+
+- **`scripts/fix-dts-aliases.mjs` regex style cleanup** — removed unnecessary escapes in the regex pattern (no functional change).
+
 ## [1.10.2] - 2026-07-16
 
 ### Fixed
