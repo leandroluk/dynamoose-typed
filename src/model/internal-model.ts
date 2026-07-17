@@ -289,7 +289,13 @@ export class InternalModel<T extends object = object> {
       this.#schema.tableName,
       viewType
     );
-    const streamsClient = new DynamoDBStreams(ddb.config as never);
+    // Only forward the connection-relevant fields (region/credentials/endpoint), not the
+    // entire resolved `ddb.config`. `ddb.config.retryStrategy` is a memoized provider tied to
+    // the DynamoDB client's own middleware resolution; reusing it verbatim for a fresh
+    // `DynamoDBStreams` client breaks retry handling ("retryStrategy.retry is not a
+    // function") against real endpoints like LocalStack.
+    const {region, credentials, endpoint} = ddb.config;
+    const streamsClient = new DynamoDBStreams({region, credentials, endpoint} as never);
     return new StreamPoller(streamsClient as unknown as DynamoDBStreamsLike, streamArn);
   }
 }

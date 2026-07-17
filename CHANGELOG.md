@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.10.1] - 2026-07-16
+
+### Fixed
+
+- **`Repository.subscribe()` against LocalStack (and other Streams-capable emulators)** — `InternalModel.getStreamPoller()` built the `DynamoDBStreams` client by reusing the resolved `DynamoDB` client's entire `config` object (`new DynamoDBStreams(ddb.config)`). `ddb.config.retryStrategy` is a memoized provider tied to the original client's own middleware resolution; reused verbatim for a fresh client it breaks retry handling (`TypeError: retryStrategy.retry is not a function`) against real endpoints like LocalStack. Now only the connection-relevant fields (`region`, `credentials`, `endpoint`) are forwarded.
+
+### Added
+
+- **`.examples/streams`** — a runnable smoke test (`pnpm exec vitest run --config .examples/streams/vitest.config.ts`) that exercises `subscribe()` end-to-end against a real LocalStack instance (INSERT/MODIFY/REMOVE).
+
+### Changed
+
+- **Lint/format tooling: ESLint + Prettier → oxlint + oxfmt** — `typescript` was already at 7.0.2, which `typescript-eslint`/`@typescript-eslint/typescript-estree` 8.58.2 cannot parse (`TypeError: Cannot read properties of undefined (reading 'Cjs')`), breaking `pnpm lint`. Replaced with the Oxc toolchain: `oxlint` (`.oxlintrc.json`, config equivalent to the old `eslint.config.ts` rule set) and `oxfmt` (`.oxfmtrc.json`, same Prettier-derived style: single quotes, no bracket spacing, 120 print width). `pnpm lint` / `pnpm format` replace the old `eslint . --fix`; `lefthook.yml` runs both on pre-commit/pre-push.
+
 ## [1.9.3] - 2026-07-13
 
 ### Added

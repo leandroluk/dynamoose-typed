@@ -174,7 +174,7 @@ export class Repository<T extends object> {
 
     if (options?.condition) {
       updateSettings = {
-        ...(updateSettings ?? {}),
+        ...updateSettings,
         condition: buildCondition(options.condition, aliasMap, updateSettings?.condition),
       };
     }

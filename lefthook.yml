@@ -3,6 +3,8 @@ pre-commit:
   commands:
     typecheck:
       run: pnpm tsc
+    format:
+      run: pnpm format
     lint:
       run: pnpm lint
 
@@ -11,6 +13,8 @@ pre-push:
   commands:
     typecheck:
       run: pnpm tsc
+    format:
+      run: pnpm format
     lint:
       run: pnpm lint
     test:

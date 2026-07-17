@@ -2,3 +2,16 @@ allowBuilds:
   '@swc/core': true
   esbuild: true
   lefthook: true
+minimumReleaseAgeExclude:
+  - '@aws-sdk/client-dynamodb-streams@3.1089.0'
+  - '@aws-sdk/client-dynamodb@3.1089.0'
+  - '@aws-sdk/credential-provider-ini@3.973.4'
+  - '@aws-sdk/credential-provider-login@3.972.66'
+  - '@aws-sdk/credential-provider-node@3.972.70'
+  - '@oxlint-tsgolint/darwin-arm64@0.25.0'
+  - '@oxlint-tsgolint/darwin-x64@0.25.0'
+  - '@oxlint-tsgolint/linux-arm64@0.25.0'
+  - '@oxlint-tsgolint/linux-x64@0.25.0'
+  - '@oxlint-tsgolint/win32-arm64@0.25.0'
+  - '@oxlint-tsgolint/win32-x64@0.25.0'
+  - oxlint-tsgolint@0.25.0

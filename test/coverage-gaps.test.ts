@@ -34,7 +34,7 @@ import {InternalModel} from '#/model/internal-model';
 import {resolveTableSchema} from '#/schema';
 import type {AnyRecord} from '#/types';
 import {isPlainObject, omit, pick, stripUnknownKeys} from '#/utils/object.utils';
-import {DynamoDB} from '@aws-sdk/client-dynamodb';
+import {type DynamoDB} from '@aws-sdk/client-dynamodb';
 import dynamoose from 'dynamoose';
 import {type Mock, beforeEach, describe, expect, it, vi} from 'vitest';
 import {OrderTable, UserTable} from './fixtures';

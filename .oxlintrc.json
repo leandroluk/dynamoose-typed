@@ -1,0 +1,38 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript", "unicorn", "oxc", "vitest"],
+  "categories": {
+    "correctness": "error"
+  },
+  "ignorePatterns": ["node_modules", "dist", ".coverage", "**/*.config.{mjs,cjs,ts,js}"],
+  "rules": {
+    "typescript/no-explicit-any": "error",
+    "typescript/no-floating-promises": "error",
+    "typescript/consistent-type-imports": ["error", {"prefer": "type-imports", "fixStyle": "inline-type-imports"}],
+    "no-unused-vars": [
+      "error",
+      {"argsIgnorePattern": "^_", "varsIgnorePattern": "^_", "caughtErrorsIgnorePattern": "^_"}
+    ],
+    "eqeqeq": "error",
+    "no-var": "error",
+    "prefer-const": "error",
+    "curly": ["error", "all"],
+    "vitest/no-focused-tests": "error",
+    "typescript/no-duplicate-type-constituents": "off",
+    "typescript/no-redundant-type-constituents": "off",
+    "typescript/no-misused-spread": "off"
+  },
+  "overrides": [
+    {
+      "files": ["**/*.test.ts", "**/*.spec.ts"],
+      "rules": {
+        "typescript/no-explicit-any": "off",
+        "typescript/no-floating-promises": "off",
+        "vitest/require-mock-type-parameters": "off"
+      }
+    }
+  ],
+  "env": {
+    "builtin": true
+  }
+}
