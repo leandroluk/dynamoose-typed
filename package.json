@@ -13,7 +13,7 @@
       "require": "./dist/index.cjs"
     },
     "./testing": {
-      "types": "./dist/testing.d.ts",
+      "types": "./dist/testing/index.d.ts",
       "import": "./dist/testing.mjs",
       "require": "./dist/testing.cjs"
     }
@@ -24,13 +24,13 @@
         "./dist/index.d.ts"
       ],
       "testing": [
-        "./dist/testing.d.ts"
+        "./dist/testing/index.d.ts"
       ]
     }
   },
   "scripts": {
     "prepare": "lefthook install",
-    "build": "tsup",
+    "build": "tsup && tsc -p tsconfig.build.json && node scripts/fix-dts-aliases.mjs",
     "test": "vitest run",
     "test:ui": "vitest --ui",
     "test:watch": "vitest",

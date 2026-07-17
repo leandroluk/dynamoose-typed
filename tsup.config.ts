@@ -16,8 +16,8 @@ export default defineConfig([
   {
     ...baseConfig,
     format: ['esm'],
-    dts: {compilerOptions: {ignoreDeprecations: '6.0', removeComments: false}},
-    outExtension: () => ({js: '.mjs', dts: '.d.ts'})
+    dts: false,
+    outExtension: () => ({js: '.mjs'})
   },
   {
     ...baseConfig,
