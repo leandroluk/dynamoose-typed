@@ -14,7 +14,7 @@ import {fileURLToPath} from 'node:url';
 
 const distDir = join(dirname(fileURLToPath(import.meta.url)), '..', 'dist');
 const hashAliasPattern = /from ['"]#(\/[^'"]*)?['"]/g;
-const relativeSpecifierPattern = /from\s+'((\.\.?\/)(?:[^'\/]+\/)*[^'\/]+)'/g;
+const relativeSpecifierPattern = /from\s+'((\.\.?\/)(?:[^'/]+\/)*[^'/]+)'/g;
 
 for await (const file of glob('**/*.d.ts', {cwd: distDir})) {
   const filePath = join(distDir, file);
