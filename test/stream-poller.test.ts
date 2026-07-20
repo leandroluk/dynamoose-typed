@@ -322,7 +322,43 @@ describe('StreamPoller — resilience', () => {
     expect(client.getRecords).toHaveBeenCalledTimes(2);
   });
 
-  it('reports a describeStream failure via onError without throwing', async () => {
+  it('retries describeStream with backoff when stream is not yet ACTIVE', async () => {
+    const client = makeClient();
+    client.describeStream
+      .mockRejectedValueOnce(new Error('Stream arn:test is not currently ACTIVE'))
+      .mockRejectedValueOnce(new Error('Stream arn:test is not currently ACTIVE'))
+      .mockResolvedValue({StreamDescription: {Shards: [OPEN_SHARD]}});
+    client.getShardIterator.mockResolvedValue({ShardIterator: 'iter-1'});
+    client.getRecords.mockResolvedValue({Records: [], NextShardIterator: 'iter-2'});
+
+    const poller = new StreamPoller(client, 'arn:test');
+    const onError = vi.fn();
+    poller.addListener({eventTypes: ['INSERT'], onEvent: vi.fn(), onError});
+
+    // First retry fires at up to base(1000)+jitter(1000)=2000ms
+    await vi.advanceTimersByTimeAsync(2500);
+    // Second retry fires at up to 1000+2000+jitter(2000)=5000ms from start
+    await vi.advanceTimersByTimeAsync(4000);
+
+    expect(client.describeStream).toHaveBeenCalledTimes(3);
+    expect(client.getShardIterator).toHaveBeenCalledTimes(1);
+    expect(onError).not.toHaveBeenCalled();
+  });
+
+  it('does not retry describeStream when error has no message property', async () => {
+    const client = makeClient();
+    client.describeStream.mockRejectedValue({code: 'InternalError'});
+
+    const poller = new StreamPoller(client, 'arn:test');
+    const onError = vi.fn();
+    poller.addListener({eventTypes: ['INSERT'], onEvent: vi.fn(), onError});
+
+    await vi.advanceTimersByTimeAsync(0);
+    expect(onError).toHaveBeenCalledWith(expect.objectContaining({code: 'InternalError'}));
+    expect(client.describeStream).toHaveBeenCalledTimes(1);
+  });
+
+  it('reports a describeStream failure via onError when error is not stream-not-active', async () => {
     const client = makeClient();
     client.describeStream.mockRejectedValueOnce(new Error('describe failed')).mockResolvedValue({
       StreamDescription: {Shards: []},
@@ -353,6 +389,43 @@ describe('StreamPoller — resilience', () => {
 
     await vi.advanceTimersByTimeAsync(60_000);
     expect(client.getShardIterator).toHaveBeenCalledTimes(2); // rescan retried the same still-open shard
+  });
+
+  it('retries getShardIterator with backoff when stream is not yet ACTIVE', async () => {
+    const client = makeClient();
+    client.describeStream.mockResolvedValue({StreamDescription: {Shards: [OPEN_SHARD]}});
+    client.getShardIterator
+      .mockRejectedValueOnce(new Error('Stream arn:test is not currently ACTIVE'))
+      .mockRejectedValueOnce(new Error('Stream arn:test is not currently ACTIVE'))
+      .mockResolvedValue({ShardIterator: 'iter-1'});
+    client.getRecords.mockResolvedValue({Records: [], NextShardIterator: 'iter-2'});
+
+    const poller = new StreamPoller(client, 'arn:test');
+    const onError = vi.fn();
+    poller.addListener({eventTypes: ['INSERT'], onEvent: vi.fn(), onError});
+
+    // First retry at up to base(500)+jitter(500)=1000ms
+    // Second retry at up to 500+1000+jitter(1000)=2500ms from start
+    await vi.advanceTimersByTimeAsync(3000);
+
+    expect(client.getShardIterator).toHaveBeenCalledTimes(3);
+    expect(onError).not.toHaveBeenCalled();
+  });
+
+  it('does not retry getShardIterator on non-retryable errors', async () => {
+    const client = makeClient();
+    client.describeStream.mockResolvedValue({StreamDescription: {Shards: [OPEN_SHARD]}});
+    client.getShardIterator.mockRejectedValue(new Error('invalid shard'));
+
+    const poller = new StreamPoller(client, 'arn:test');
+    const onError = vi.fn();
+    poller.addListener({eventTypes: ['INSERT'], onEvent: vi.fn(), onError});
+
+    await vi.advanceTimersByTimeAsync(0);
+
+    // "invalid shard" is not a stream-not-active error → no retry, immediate error
+    expect(onError).toHaveBeenCalledWith(expect.objectContaining({message: 'invalid shard'}));
+    expect(client.getShardIterator).toHaveBeenCalledTimes(1);
   });
 
   it('stops mid-shard-read when the last listener is removed', async () => {

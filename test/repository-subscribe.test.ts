@@ -121,6 +121,75 @@ describe('Repository.subscribe', () => {
     expect(unsubscribe).toHaveBeenCalledTimes(1);
   });
 
+  it('retries bootstrap when retry option is provided and getStreamPoller fails with ResourceNotFoundException', async () => {
+    const {repo, model} = makeRepo({streamViewType: 'NEW_AND_OLD_IMAGES'});
+    const fakePoller = {addListener: vi.fn().mockReturnValue(vi.fn()), listenerCount: 0};
+
+    const getStreamPoller = vi
+      .spyOn(model, 'getStreamPoller')
+      .mockRejectedValueOnce(Object.assign(new Error('table not found'), {name: 'ResourceNotFoundException'}))
+      .mockResolvedValue(fakePoller as never);
+
+    const callback = vi.fn();
+    repo.subscribe({
+      eventTypes: ['INSERT'],
+      callback,
+      options: {
+        retry: {maxRetries: 3, baseDelayMs: 5, maxDelayMs: 20},
+      },
+    });
+
+    // Small delay to allow the retry loop to complete
+    await new Promise(resolve => setTimeout(resolve, 100));
+
+    expect(getStreamPoller).toHaveBeenCalledTimes(2);
+    expect(fakePoller.addListener).toHaveBeenCalledTimes(1);
+  });
+
+  it('retry exhausts maxRetries and routes the final error to onError', async () => {
+    const {repo, model} = makeRepo({streamViewType: 'NEW_AND_OLD_IMAGES'});
+
+    const getStreamPoller = vi
+      .spyOn(model, 'getStreamPoller')
+      .mockRejectedValue(Object.assign(new Error('table never ready'), {name: 'ResourceNotFoundException'}));
+
+    const onError = vi.fn();
+    repo.subscribe({
+      eventTypes: ['INSERT'],
+      callback: vi.fn(),
+      options: {
+        retry: {maxRetries: 2, baseDelayMs: 5, maxDelayMs: 20},
+        onError,
+      },
+    });
+
+    await new Promise(resolve => setTimeout(resolve, 200));
+
+    // initial + 2 retries = 3 calls
+    expect(getStreamPoller).toHaveBeenCalledTimes(3);
+    expect(onError).toHaveBeenCalledWith(expect.objectContaining({message: 'table never ready'}));
+  });
+
+  it('does not retry when retry option is not provided (normal error routing)', async () => {
+    const {repo, model} = makeRepo({streamViewType: 'NEW_AND_OLD_IMAGES'});
+
+    const getStreamPoller = vi
+      .spyOn(model, 'getStreamPoller')
+      .mockRejectedValue(Object.assign(new Error('table not found'), {name: 'ResourceNotFoundException'}));
+
+    const onError = vi.fn();
+    repo.subscribe({
+      eventTypes: ['INSERT'],
+      callback: vi.fn(),
+      options: {onError},
+    });
+
+    await new Promise(resolve => setTimeout(resolve, 50));
+
+    expect(getStreamPoller).toHaveBeenCalledTimes(1);
+    expect(onError).toHaveBeenCalledWith(expect.objectContaining({message: 'table not found'}));
+  });
+
   it('sets oldItem to undefined when stream record has no OldImage (NEW_IMAGE view type)', async () => {
     const {repo, model} = makeRepo({streamViewType: 'NEW_IMAGE'});
     const fakePoller = {addListener: vi.fn().mockReturnValue(vi.fn()), listenerCount: 0};

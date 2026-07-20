@@ -1,5 +1,31 @@
 # Changelog
 
+## [1.10.4] - 2026-07-20
+
+### Added
+
+- **`retryWithBackoff` utility** (`src/utils/retry.ts`) — generic retry with exponential backoff and full jitter. Accepts configurable `maxRetries`, `baseDelayMs`, `maxDelayMs`, and a `shouldRetry` predicate to selectively retry specific errors.
+
+- **`ensureStreamEnabled` now retries `describeTable` on `ResourceNotFoundException`** — when the physical table has not finished provisioning (e.g. on a fresh LocalStack run), the function retries with backoff (up to 15 attempts, 500ms–15s) instead of immediately failing.
+
+- **`StreamPoller.#rescan` retries `describeStream` on stream-not-ACTIVE errors** — when DynamoDB Streams is not yet ACTIVE, the poller retries with backoff (5 attempts, 1s–10s) instead of waiting for the next 60s periodic rescan.
+
+- **`StreamPoller.#readShard` retries `getShardIterator` on stream-not-ACTIVE errors** — when `getShardIterator` fails because the stream is not yet ACTIVE, the shard reader retries with backoff (30 attempts, 500ms–10s) instead of immediately abandoning the shard.
+
+- **`Repository.subscribe()` accepts an optional `retry` parameter** in `SubscribeParams.options` — when set, the entire stream bootstrap (including `ensureStreamEnabled` and `StreamPoller` creation) is retried on `ResourceNotFoundException` with user-defined backoff:
+
+  ```typescript
+  repo.subscribe({
+    eventTypes: ['INSERT'],
+    callback,
+    options: {
+      retry: { maxRetries: 30, baseDelayMs: 1000, maxDelayMs: 10000 },
+    },
+  });
+  ```
+
+  Without `retry`, the error is forwarded to `onError` immediately as before. The automatic per-operation retries in `ensureStreamEnabled` and `StreamPoller` still apply regardless.
+
 ## [1.10.3] - 2026-07-17
 
 ### Fixed

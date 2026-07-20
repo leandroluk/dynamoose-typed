@@ -1,3 +1,4 @@
+import {retryWithBackoff} from '#/utils/retry';
 import type {StreamViewType} from '#/types';
 
 export interface DescribeUpdateTableClient {
@@ -17,12 +18,26 @@ export interface DescribeUpdateTableClient {
  * Ensures the physical table has DynamoDB Streams enabled with the requested view type,
  * enabling/updating it via `UpdateTable` if necessary. Returns the stream's ARN.
  */
+function isResourceNotFound(err: unknown): boolean {
+  return (err as {name?: string}).name === 'ResourceNotFoundException';
+}
+
+/**
+ * Ensures the physical table has DynamoDB Streams enabled with the requested view type,
+ * enabling/updating it via `UpdateTable` if necessary. Returns the stream's ARN.
+ *
+ * Retries `describeTable` with exponential backoff when the table does not yet exist
+ * (`ResourceNotFoundException`), which is common in ephemeral environments (LocalStack)
+ * where the table may still be provisioning when `subscribe()` is first called.
+ */
 export async function ensureStreamEnabled(
   client: DescribeUpdateTableClient,
   tableName: string,
   viewType: StreamViewType
 ): Promise<string> {
-  const described = await client.describeTable({TableName: tableName});
+  const described = await retryWithBackoff(() => client.describeTable({TableName: tableName}), {
+    shouldRetry: isResourceNotFound,
+  });
   const spec = described.Table?.StreamSpecification;
 
   // Known v1 limitation (not handled here): changing an existing table's `stream` view

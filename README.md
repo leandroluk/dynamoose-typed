@@ -217,6 +217,34 @@ await subscription.close();
 - `InMemoryDataSource` / `InMemoryRepository` support the same `subscribe()` API by simulating events synchronously in-process — no AWS connection needed in tests.
 - Changing the `stream` view type on a table that already has streams enabled with a different view type is not handled automatically — AWS requires disabling and re-enabling the stream in separate calls, so you must do that manually (e.g. via the AWS console/CLI) before the next `subscribe()` call.
 
+### Retry on transient errors
+
+`subscribe()` is resilient to transient failures during stream bootstrap:
+
+- **`ensureStreamEnabled`** retries `describeTable` with exponential backoff (up to 15 attempts, 500ms–15s) when the table does not yet exist (`ResourceNotFoundException`). This is always active — no configuration needed.
+- **`StreamPoller`** retries `describeStream` and `getShardIterator` with backoff when the stream reports itself as not yet ACTIVE. This is also always active.
+
+Additionally, you can opt into retrying the **entire stream bootstrap** (including stream enabling and poller creation) when the table is still provisioning:
+
+```typescript
+const subscription = userRepository.subscribe({
+  eventTypes: ['INSERT', 'MODIFY', 'REMOVE'],
+  callback: async (user, meta) => {
+    console.log('user changed', user.id, meta.eventName);
+  },
+  options: {
+    onError: (err) => console.error('stream error', err),
+    retry: {
+      maxRetries: 30,      // try for ~2 minutes (default: 15)
+      baseDelayMs: 1000,   // first retry after 1s
+      maxDelayMs: 10000,   // never wait more than 10s between retries
+    },
+  },
+});
+```
+
+When `retry` is set, the bootstrap is retried on `ResourceNotFoundException` with exponential backoff. If all retries are exhausted, the final error is forwarded to `onError`. You can still call `subscription.close()` to cancel a pending retry.
+
 ## Table name prefix/suffix
 
 When multiple environments share a single DynamoDB account, you can isolate them using a table name prefix or suffix rather than separate regions:
