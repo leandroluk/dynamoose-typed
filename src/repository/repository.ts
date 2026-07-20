@@ -1,5 +1,7 @@
 import {OptimisticLockError} from '#/errors';
 import type {InternalModel} from '#/model/internal-model';
+import type {StreamPoller} from '#/streams/stream-poller';
+import {retryWithBackoff} from '#/utils/retry';
 import type {
   AnyRecord,
   CountOptions,
@@ -576,28 +578,38 @@ export class Repository<T extends object> {
     let unsubscribe: (() => void) | undefined;
     let closed = false;
 
-    void this.#model
-      .getStreamPoller()
-      .then(poller => {
-        if (closed) {
-          return;
-        }
-        unsubscribe = poller.addListener({
-          eventTypes,
-          onEvent: async (event): Promise<void> =>
-            callback(this.#model.normalize(event.image), {
-              eventId: event.eventId,
-              eventName: event.eventName,
-              approximateCreationDateTime: event.approximateCreationDateTime,
-              sequenceNumber: event.sequenceNumber,
-              oldItem: event.oldImage
-                ? (this.#model.normalize(event.oldImage) as unknown as Record<string, unknown>)
-                : undefined,
-            }),
-          onError,
-        });
-      })
-      .catch(err => onError(err));
+    const attach = (poller: StreamPoller): void => {
+      unsubscribe = poller.addListener({
+        eventTypes,
+        onEvent: async (event): Promise<void> =>
+          callback(this.#model.normalize(event.image), {
+            eventId: event.eventId,
+            eventName: event.eventName,
+            approximateCreationDateTime: event.approximateCreationDateTime,
+            sequenceNumber: event.sequenceNumber,
+            oldItem: event.oldImage
+              ? (this.#model.normalize(event.oldImage) as unknown as Record<string, unknown>)
+              : undefined,
+          }),
+        onError,
+      });
+    };
+
+    const bootstrap = async (): Promise<void> => {
+      const poller = await this.#model.getStreamPoller();
+      if (!closed) {
+        attach(poller);
+      }
+    };
+
+    if (options?.retry) {
+      void retryWithBackoff(bootstrap, {
+        ...options.retry,
+        shouldRetry: err => (err as {name?: string}).name === 'ResourceNotFoundException',
+      }).catch(err => onError(err));
+    } else {
+      void bootstrap().catch(err => onError(err));
+    }
 
     return {
       close: async (): Promise<void> => {

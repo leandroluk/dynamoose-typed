@@ -39,6 +39,16 @@ export interface StreamEventMeta {
   oldItem?: Record<string, unknown>;
 }
 
+/** Options for retry with exponential backoff. */
+export interface RetryOptions {
+  /** Maximum number of retry attempts (default: 15). */
+  maxRetries?: number;
+  /** Base delay in ms for exponential backoff (default: 500). */
+  baseDelayMs?: number;
+  /** Maximum delay in ms between retries (default: 15000). */
+  maxDelayMs?: number;
+}
+
 /** Parameters accepted by `Repository.subscribe()` / `InMemoryRepository.subscribe()`. */
 export interface SubscribeParams<T> {
   /** Which DynamoDB Streams event types to listen for. */
@@ -53,5 +63,14 @@ export interface SubscribeParams<T> {
   options?: {
     /** Invoked when the underlying stream poller (or the callback itself) throws. Defaults to `console.error`. */
     onError?: (err: unknown) => void;
+
+    /**
+     * Retry configuration for bootstrapping the stream poller.
+     * When set, `subscribe()` will retry the entire stream bootstrap
+     * (including table discovery and stream enabling) on transient errors
+     * such as `ResourceNotFoundException` (table not yet created).
+     * Defaults to no retry — errors are immediately forwarded to `onError`.
+     */
+    retry?: RetryOptions;
   };
 }

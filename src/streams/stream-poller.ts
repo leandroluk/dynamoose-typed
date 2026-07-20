@@ -1,3 +1,4 @@
+import {retryWithBackoff} from '#/utils/retry';
 import type {AttributeValue} from '@aws-sdk/client-dynamodb';
 import type {StreamEventType} from '#/types';
 import {unmarshall} from '@aws-sdk/util-dynamodb';
@@ -105,11 +106,29 @@ export class StreamPoller {
     this.#rescanTimer = undefined;
   }
 
+  /**
+   * Checks whether the error indicates the DynamoDB Stream is not yet ACTIVE.
+   * LocalStack wraps the upstream `ResourceInUseException` inside an `InternalError`,
+   * so we key on the message text rather than the error name.
+   */
+  #isStreamNotActive(err: unknown): boolean {
+    const msg = typeof (err as {message?: unknown})?.message === 'string' ? (err as {message: string}).message : '';
+    return msg.includes('not currently ACTIVE');
+  }
+
   async #rescan(): Promise<void> {
     const generation = this.#generation;
     let shards: StreamShard[];
     try {
-      const result = await this.#client.describeStream({StreamArn: this.#streamArn});
+      const result = await retryWithBackoff(
+        () => this.#client.describeStream({StreamArn: this.#streamArn}),
+        {
+          maxRetries: 5,
+          baseDelayMs: 1000,
+          maxDelayMs: 10000,
+          shouldRetry: (err) => this.#isStreamNotActive(err),
+        }
+      );
       shards = result.StreamDescription?.Shards ?? [];
     } catch (err) {
       this.#dispatchError(err);
@@ -132,11 +151,21 @@ export class StreamPoller {
   async #readShard(shardId: string, generation: number, initialIteratorType: ShardIteratorType): Promise<void> {
     let iterator: string | undefined;
     try {
-      const acquired = await this.#client.getShardIterator({
-        StreamArn: this.#streamArn,
-        ShardId: shardId,
-        ShardIteratorType: initialIteratorType,
-      });
+      const acquired = await retryWithBackoff(
+        () =>
+          this.#client.getShardIterator({
+            StreamArn: this.#streamArn,
+            ShardId: shardId,
+            ShardIteratorType: initialIteratorType,
+          }),
+        {
+          maxRetries: 30,
+          baseDelayMs: 500,
+          maxDelayMs: 10000,
+          shouldRetry: (err) =>
+            generation === this.#generation && this.#isStreamNotActive(err),
+        }
+      );
       iterator = acquired.ShardIterator;
     } catch (err) {
       if (generation === this.#generation) {

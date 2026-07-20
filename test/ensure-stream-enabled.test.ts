@@ -47,4 +47,38 @@ describe('ensureStreamEnabled', () => {
       StreamSpecification: {StreamEnabled: true, StreamViewType: 'KEYS_ONLY'},
     });
   });
+
+  it('retries describeTable on ResourceNotFoundException with backoff', async () => {
+    const describeTable = vi
+      .fn()
+      .mockRejectedValueOnce(Object.assign(new Error('not yet'), {name: 'ResourceNotFoundException'}))
+      .mockRejectedValueOnce(Object.assign(new Error('still not'), {name: 'ResourceNotFoundException'}))
+      .mockResolvedValueOnce({
+        Table: {
+          LatestStreamArn: 'arn:retried',
+          StreamSpecification: {StreamEnabled: true, StreamViewType: 'NEW_AND_OLD_IMAGES'},
+        },
+      });
+    const updateTable = vi.fn();
+
+    const arn = await ensureStreamEnabled(
+      {describeTable, updateTable},
+      'slow-table',
+      'NEW_AND_OLD_IMAGES'
+    );
+
+    expect(arn).toBe('arn:retried');
+    expect(describeTable).toHaveBeenCalledTimes(3);
+    expect(updateTable).not.toHaveBeenCalled();
+  });
+
+  it('still throws on non-retryable errors', async () => {
+    const describeTable = vi.fn().mockRejectedValue(Object.assign(new Error('access denied'), {name: 'AccessDeniedException'}));
+    const updateTable = vi.fn();
+
+    await expect(
+      ensureStreamEnabled({describeTable, updateTable}, 'blocked', 'KEYS_ONLY')
+    ).rejects.toThrow('access denied');
+    expect(describeTable).toHaveBeenCalledTimes(1);
+  });
 });
