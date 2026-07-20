@@ -5,10 +5,7 @@ export interface RetryOptions {
   shouldRetry?: (err: unknown, attempt: number) => boolean;
 }
 
-export async function retryWithBackoff<T>(
-  fn: () => Promise<T>,
-  options?: RetryOptions
-): Promise<T> {
+export async function retryWithBackoff<T>(fn: () => Promise<T>, options?: RetryOptions): Promise<T> {
   const maxRetries = options?.maxRetries ?? 15;
   const baseDelayMs = options?.baseDelayMs ?? 500;
   const maxDelayMs = options?.maxDelayMs ?? 15000;

@@ -127,9 +127,7 @@ describe('Repository.subscribe', () => {
 
     const getStreamPoller = vi
       .spyOn(model, 'getStreamPoller')
-      .mockRejectedValueOnce(
-        Object.assign(new Error('table not found'), {name: 'ResourceNotFoundException'})
-      )
+      .mockRejectedValueOnce(Object.assign(new Error('table not found'), {name: 'ResourceNotFoundException'}))
       .mockResolvedValue(fakePoller as never);
 
     const callback = vi.fn();
@@ -153,9 +151,7 @@ describe('Repository.subscribe', () => {
 
     const getStreamPoller = vi
       .spyOn(model, 'getStreamPoller')
-      .mockRejectedValue(
-        Object.assign(new Error('table never ready'), {name: 'ResourceNotFoundException'})
-      );
+      .mockRejectedValue(Object.assign(new Error('table never ready'), {name: 'ResourceNotFoundException'}));
 
     const onError = vi.fn();
     repo.subscribe({
@@ -171,9 +167,7 @@ describe('Repository.subscribe', () => {
 
     // initial + 2 retries = 3 calls
     expect(getStreamPoller).toHaveBeenCalledTimes(3);
-    expect(onError).toHaveBeenCalledWith(
-      expect.objectContaining({message: 'table never ready'})
-    );
+    expect(onError).toHaveBeenCalledWith(expect.objectContaining({message: 'table never ready'}));
   });
 
   it('does not retry when retry option is not provided (normal error routing)', async () => {
@@ -181,9 +175,7 @@ describe('Repository.subscribe', () => {
 
     const getStreamPoller = vi
       .spyOn(model, 'getStreamPoller')
-      .mockRejectedValue(
-        Object.assign(new Error('table not found'), {name: 'ResourceNotFoundException'})
-      );
+      .mockRejectedValue(Object.assign(new Error('table not found'), {name: 'ResourceNotFoundException'}));
 
     const onError = vi.fn();
     repo.subscribe({
@@ -195,9 +187,7 @@ describe('Repository.subscribe', () => {
     await new Promise(resolve => setTimeout(resolve, 50));
 
     expect(getStreamPoller).toHaveBeenCalledTimes(1);
-    expect(onError).toHaveBeenCalledWith(
-      expect.objectContaining({message: 'table not found'})
-    );
+    expect(onError).toHaveBeenCalledWith(expect.objectContaining({message: 'table not found'}));
   });
 
   it('sets oldItem to undefined when stream record has no OldImage (NEW_IMAGE view type)', async () => {

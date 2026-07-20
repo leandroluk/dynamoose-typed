@@ -61,11 +61,7 @@ describe('ensureStreamEnabled', () => {
       });
     const updateTable = vi.fn();
 
-    const arn = await ensureStreamEnabled(
-      {describeTable, updateTable},
-      'slow-table',
-      'NEW_AND_OLD_IMAGES'
-    );
+    const arn = await ensureStreamEnabled({describeTable, updateTable}, 'slow-table', 'NEW_AND_OLD_IMAGES');
 
     expect(arn).toBe('arn:retried');
     expect(describeTable).toHaveBeenCalledTimes(3);
@@ -73,12 +69,14 @@ describe('ensureStreamEnabled', () => {
   });
 
   it('still throws on non-retryable errors', async () => {
-    const describeTable = vi.fn().mockRejectedValue(Object.assign(new Error('access denied'), {name: 'AccessDeniedException'}));
+    const describeTable = vi
+      .fn()
+      .mockRejectedValue(Object.assign(new Error('access denied'), {name: 'AccessDeniedException'}));
     const updateTable = vi.fn();
 
-    await expect(
-      ensureStreamEnabled({describeTable, updateTable}, 'blocked', 'KEYS_ONLY')
-    ).rejects.toThrow('access denied');
+    await expect(ensureStreamEnabled({describeTable, updateTable}, 'blocked', 'KEYS_ONLY')).rejects.toThrow(
+      'access denied'
+    );
     expect(describeTable).toHaveBeenCalledTimes(1);
   });
 });

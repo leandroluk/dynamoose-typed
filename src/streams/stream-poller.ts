@@ -120,15 +120,12 @@ export class StreamPoller {
     const generation = this.#generation;
     let shards: StreamShard[];
     try {
-      const result = await retryWithBackoff(
-        () => this.#client.describeStream({StreamArn: this.#streamArn}),
-        {
-          maxRetries: 5,
-          baseDelayMs: 1000,
-          maxDelayMs: 10000,
-          shouldRetry: (err) => this.#isStreamNotActive(err),
-        }
-      );
+      const result = await retryWithBackoff(() => this.#client.describeStream({StreamArn: this.#streamArn}), {
+        maxRetries: 5,
+        baseDelayMs: 1000,
+        maxDelayMs: 10000,
+        shouldRetry: err => this.#isStreamNotActive(err),
+      });
       shards = result.StreamDescription?.Shards ?? [];
     } catch (err) {
       this.#dispatchError(err);
@@ -162,8 +159,7 @@ export class StreamPoller {
           maxRetries: 30,
           baseDelayMs: 500,
           maxDelayMs: 10000,
-          shouldRetry: (err) =>
-            generation === this.#generation && this.#isStreamNotActive(err),
+          shouldRetry: err => generation === this.#generation && this.#isStreamNotActive(err),
         }
       );
       iterator = acquired.ShardIterator;

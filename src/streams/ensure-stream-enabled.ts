@@ -35,10 +35,9 @@ export async function ensureStreamEnabled(
   tableName: string,
   viewType: StreamViewType
 ): Promise<string> {
-  const described = await retryWithBackoff(
-    () => client.describeTable({TableName: tableName}),
-    {shouldRetry: isResourceNotFound}
-  );
+  const described = await retryWithBackoff(() => client.describeTable({TableName: tableName}), {
+    shouldRetry: isResourceNotFound,
+  });
   const spec = described.Table?.StreamSpecification;
 
   // Known v1 limitation (not handled here): changing an existing table's `stream` view
