@@ -1,5 +1,32 @@
 # Changelog
 
+## [1.11.0] - 2026-08-28
+
+### Added
+
+- **`ResolvedSchema.indexMap`** — maps each entity **property key** to the physical
+  DynamoDB GSI name for every attribute that declares an `index` option. `index: true`
+  (or an `index` object without `name`) resolves to `` `${attributeName}GlobalIndex` ``;
+  `index: { name: 'X' }` resolves to `'X'`. Attributes without an index are absent.
+
+- **`Repository.findByIndex` / `EntityManager.findByIndex` now query custom-named GSIs.**
+  Previously the index name was always derived as `` `${attributeName}GlobalIndex` ``, so a
+  GSI declared with `@StringAttribute('parent_id', { index: { name: 'parentIdIndex' } })`
+  could not be queried through the typed API (DynamoDB `ValidationException`) — callers had
+  to fall back to a full-table `scan()`. The index name is now resolved in this order:
+
+  1. `options.indexName` — new explicit override, e.g.
+     `repo.findByIndex('userIdOwner', v, { indexName: 'parentIdIndex' })`
+  2. the name declared on the attribute's `index` option (via `schema.indexMap`)
+  3. `` `${attributeName}GlobalIndex` `` — unchanged fallback
+
+  Fully backward compatible: `index: true` attributes and existing call sites are unaffected.
+
+### Changed
+
+- **`ResolvedSchema.deleteDateIndexName`** now honours a custom `index: { name }` on
+  `@DeleteDateAttribute` instead of only recognising `index: true`.
+
 ## [1.10.4] - 2026-07-20
 
 ### Added

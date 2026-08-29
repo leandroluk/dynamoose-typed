@@ -191,7 +191,9 @@ export class InMemoryRepository<T extends object> {
   async findByIndex<S extends SelectMap<T> | undefined = undefined>(
     attributeKey: keyof T & string,
     hashValue: unknown,
-    options: FindOptions & {select?: S} = {}
+    // `indexName` is accepted for API parity with the real repository; the
+    // in-memory store filters by attribute value and ignores the physical index.
+    options: FindOptions & {select?: S; indexName?: string} = {}
   ): Promise<PaginatedResult<Projected<T, S>>> {
     let items = [...this.#store.values()].filter(i => (i as Record<string, unknown>)[attributeKey] === hashValue);
     if (!options.withDeleted) {

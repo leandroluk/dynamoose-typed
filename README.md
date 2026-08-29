@@ -461,11 +461,14 @@ fullName!: string;
 // stored as "full_name" in DynamoDB, accessed as .fullName in code
 ```
 
-All decorators also accept `index: true` to create a DynamoDB GSI on that attribute (default name: `${attributeName}GlobalIndex`):
+All decorators also accept `index: true` to create a DynamoDB GSI on that attribute (default name: `${attributeName}GlobalIndex`), or `index: { name, rangeKey, project }` for a custom-named / composite GSI. Both forms are queryable through `repo.findByIndex(...)`:
 
 ```typescript
 @StringAttribute({ index: true })
 email!: string; // creates "emailGlobalIndex" GSI
+
+@StringAttribute('parent_id', { index: { name: 'parentIdIndex', rangeKey: 'createdAt' } })
+userIdOwner!: string; // creates "parentIdIndex" GSI
 ```
 
 ## GSI indexes
@@ -487,11 +490,23 @@ class UserTable {
 }
 ```
 
-Use `repo.findByIndex(propertyKey, value)` to query any GSI. The library maps the TypeScript property key to the DynamoDB attribute name (alias-aware) and derives the index name as `${attrName}GlobalIndex`:
+Use `repo.findByIndex(propertyKey, value)` to query any GSI. The library maps the TypeScript property key to the DynamoDB attribute name (alias-aware) and resolves the index name in this order:
+
+1. `options.indexName` — explicit override
+2. the name declared on the attribute's `index` option — `index: { name: 'X' }` → `X`, `index: true` → `${attrName}GlobalIndex`
+3. `${attrName}GlobalIndex` — fallback
 
 ```typescript
 const { items } = await userRepository.findByIndex('email', 'alice@example.com');
 const { items: active } = await userRepository.findByIndex('isActive', true, { limit: 50 });
+
+// custom-named GSI: @StringAttribute('parent_id', { index: { name: 'parentIdIndex' } })
+const { items: owned } = await installationRepository.findByIndex('userIdOwner', userId);
+
+// or force a specific physical index
+const { items } = await installationRepository.findByIndex('userIdOwner', userId, {
+  indexName: 'parentIdIndex',
+});
 ```
 
 When `index: true` is set on `@DeleteDateAttribute`, `repo.count()` uses a two-`Select: COUNT` strategy instead of scanning item bodies:

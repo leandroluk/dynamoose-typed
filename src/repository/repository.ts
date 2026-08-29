@@ -226,17 +226,25 @@ export class Repository<T extends object> {
   }
 
   /**
-   * Query items via a GSI. The index name is derived as `${attributeName}GlobalIndex`.
-   * Requires `index: true` on the corresponding attribute decorator.
+   * Query items via a GSI.
+   *
+   * The index name is resolved in this order:
+   * 1. `options.indexName` — explicit override
+   * 2. the name declared on the attribute's `index` option
+   *    (`index: { name }`, or `` `${attributeName}GlobalIndex` `` for `index: true`)
+   * 3. `` `${attributeName}GlobalIndex` `` — fallback for keys not present in the schema
+   *
+   * Requires an `index` option on the corresponding attribute decorator (or a
+   * matching physical GSI when `options.indexName` is supplied).
    */
   async findByIndex<S extends SelectMap<T> | undefined = undefined>(
     attributeKey: keyof T & string,
     hashValue: unknown,
-    options: FindOptions & {select?: S} = {}
+    options: FindOptions & {select?: S; indexName?: string} = {}
   ): Promise<PaginatedResult<Projected<T, S>>> {
     const schema = this.#model.schema;
     const attrName = schema.aliasMap[attributeKey] ?? attributeKey;
-    const indexName = `${attrName}GlobalIndex`;
+    const indexName = options.indexName ?? schema.indexMap[attributeKey] ?? `${attrName}GlobalIndex`;
 
     let q = this.#model.raw
       .query(attrName)

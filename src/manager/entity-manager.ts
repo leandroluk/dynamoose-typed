@@ -88,13 +88,16 @@ export class EntityManager {
   }
 
   /**
-   * Find entities by GSI hash key. Index name derived as `${attributeName}GlobalIndex`.
+   * Find entities by GSI hash key.
+   *
+   * The index name is taken from `options.indexName`, else the name declared on
+   * the attribute's `index` option, else `` `${attributeName}GlobalIndex` ``.
    */
   async findByIndex<T extends object, S extends SelectMap<T> | undefined = undefined>(
     entityClass: new () => T,
     attributeKey: keyof T & string,
     hashValue: unknown,
-    options?: FindOptions & {select?: S}
+    options?: FindOptions & {select?: S; indexName?: string}
   ): Promise<PaginatedResult<Projected<T, S>>> {
     return this.getRepository(entityClass).findByIndex(attributeKey, hashValue, options);
   }

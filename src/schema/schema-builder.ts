@@ -32,6 +32,24 @@ function buildIndexEntry(
 }
 
 /**
+ * Resolves the physical DynamoDB GSI name for an attribute that declares an `index` option.
+ *
+ * - `index: true` (or an object without `name`) → `` `${attributeName}GlobalIndex` `` (Dynamoose default)
+ * - `index: { name: 'X' }` → `'X'`
+ * - no `index` → `undefined`
+ */
+function resolveIndexName(attr: StoredAttributeMeta): string | undefined {
+  const indexOpt = attr.options['index'] as boolean | IndexOptions | undefined;
+  if (!indexOpt) {
+    return undefined;
+  }
+  if (typeof indexOpt === 'object' && indexOpt.name) {
+    return indexOpt.name;
+  }
+  return `${attr.attributeName}GlobalIndex`;
+}
+
+/**
  * Recursively build the raw schema definition for a document/table class.
  */
 function buildDefinition(attributes: StoredAttributeMeta[], aliasMap: Record<string, string>): Record<string, unknown> {
@@ -338,6 +356,13 @@ export interface ResolvedSchema {
   deleteDateIndexName?: string;
   /** Property name of the @DateAttribute({ ttl: true }) field, if any. */
   ttlKey?: string;
+  /**
+   * Maps entity **property key** → physical GSI name for every attribute that
+   * declares an `index` option. `index: true` resolves to
+   * `` `${attributeName}GlobalIndex` ``; `index: { name }` resolves to that name.
+   * Attributes without an index are absent.
+   */
+  indexMap: Record<string, string>;
   /** Property name of the @VersionAttribute field, if any. */
   versionKey?: string;
   /** Attribute name (after alias resolution) of the @VersionAttribute field, if any. */
@@ -382,9 +407,16 @@ export function resolveTableSchema(entityClass: new () => unknown): ResolvedSche
   };
   const streamViewType: StreamViewType | undefined = stream === true ? 'NEW_AND_OLD_IMAGES' : stream;
 
+  const indexMap: Record<string, string> = {};
+  for (const attr of meta.attributes) {
+    const indexName = resolveIndexName(attr);
+    if (indexName) {
+      indexMap[attr.propertyKey] = indexName;
+    }
+  }
+
   const deleteDateAttr = meta.attributes.find(a => a.kind === 'deleteDate');
-  const deleteDateIndexName =
-    deleteDateAttr?.options['index'] === true ? `${deleteDateAttr.attributeName}GlobalIndex` : undefined;
+  const deleteDateIndexName = deleteDateAttr ? resolveIndexName(deleteDateAttr) : undefined;
 
   const ttlAttr = meta.attributes.find(a => a.kind === 'date' && a.timestampType === 'ttl');
   const ttlKey = ttlAttr?.propertyKey;
@@ -407,6 +439,7 @@ export function resolveTableSchema(entityClass: new () => unknown): ResolvedSche
     rangeKey: meta.rangeKey,
     deleteDateKey: meta.deleteDateKey,
     deleteDateIndexName,
+    indexMap,
     ttlKey,
     versionKey,
     versionAttrName,

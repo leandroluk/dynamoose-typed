@@ -651,3 +651,56 @@ describe('composite GSI (index as object)', () => {
     expect(field.index).toEqual({rangeKey: 'ghostProp'});
   });
 });
+
+describe('indexMap (property key → resolved GSI name)', () => {
+  it('maps index:true to `${attributeName}GlobalIndex` (alias-aware)', () => {
+    @DynamoTable('imap-bool')
+    class ImapBoolTable {
+      @StringAttribute({hashKey: true}) id!: string;
+      @StringAttribute('email_addr', {index: true}) email!: string;
+      @BooleanAttribute({index: true}) active!: boolean;
+    }
+    const schema = resolveTableSchema(ImapBoolTable);
+    expect(schema.indexMap).toEqual({
+      email: 'email_addrGlobalIndex',
+      active: 'activeGlobalIndex',
+    });
+  });
+
+  it('maps index object with custom name to that name', () => {
+    @DynamoTable('imap-name')
+    class ImapNameTable {
+      @StringAttribute({hashKey: true}) id!: string;
+      @StringAttribute('parent_id', {index: {name: 'parentIdIndex', rangeKey: 'createdAt'}}) userIdOwner!: string;
+      @CreateDateAttribute('created_at') createdAt!: Date;
+    }
+    const schema = resolveTableSchema(ImapNameTable);
+    expect(schema.indexMap['userIdOwner']).toBe('parentIdIndex');
+  });
+
+  it('maps index object without name to the default `${attributeName}GlobalIndex`', () => {
+    @DynamoTable('imap-noname')
+    class ImapNoNameTable {
+      @StringAttribute({hashKey: true}) id!: string;
+      @StringAttribute('tenant_id', {index: {rangeKey: 'status'}}) tenantId!: string;
+      @StringAttribute() status!: string;
+    }
+    const schema = resolveTableSchema(ImapNoNameTable);
+    expect(schema.indexMap['tenantId']).toBe('tenant_idGlobalIndex');
+  });
+
+  it('omits attributes without an index', () => {
+    const schema = resolveTableSchema(UserTable);
+    expect(schema.indexMap).toEqual({});
+  });
+
+  it('covers the sparse @DeleteDateAttribute index', () => {
+    @DynamoTable('imap-softdelete')
+    class ImapSoftDeleteTable {
+      @StringAttribute({hashKey: true}) id!: string;
+      @DeleteDateAttribute('deleted_at', {index: true}) deletedAt!: Date | null;
+    }
+    const schema = resolveTableSchema(ImapSoftDeleteTable);
+    expect(schema.indexMap['deletedAt']).toBe('deleted_atGlobalIndex');
+  });
+});

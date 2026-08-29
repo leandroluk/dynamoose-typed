@@ -2,7 +2,7 @@ import {DeleteDateAttribute, DynamoTable, StringAttribute} from '#';
 import {DataSource} from '#/data-source/data-source';
 import dynamoose from 'dynamoose';
 import {afterEach, beforeEach, describe, expect, it, type Mock, vi} from 'vitest';
-import {OrderTable, UserTable} from './fixtures';
+import {GsiTable, OrderTable, UserTable} from './fixtures';
 
 interface MockModel {
   get: Mock;
@@ -130,7 +130,7 @@ describe('Repository Integration (Real Logic)', () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
-    dataSource = new DataSource({entities: [UserTable]});
+    dataSource = new DataSource({entities: [UserTable, GsiTable]});
     await dataSource.initialize();
     mockModel = vi.mocked(dynamoose.model('', {}));
   });
@@ -263,6 +263,37 @@ describe('Repository Integration (Real Logic)', () => {
 
       expect(queryChain.limit).toHaveBeenCalledWith(10);
       expect(queryChain.startAt).toHaveBeenCalledWith({id: '0'});
+    });
+
+    it('uses the custom GSI name declared via index: { name }', async () => {
+      const repo = dataSource.getRepository(GsiTable);
+      const queryChain = mockModel.query('parent_id');
+      queryChain.exec.mockResolvedValue(Object.assign([makeItem({id: '1', parent_id: 'u1'})], {lastKey: undefined}));
+
+      await repo.findByIndex('userIdOwner', 'u1');
+
+      expect(mockModel.query).toHaveBeenCalledWith('parent_id');
+      expect(queryChain.using).toHaveBeenCalledWith('parentIdIndex');
+    });
+
+    it('still derives `${attr}GlobalIndex` for index: true attributes', async () => {
+      const repo = dataSource.getRepository(GsiTable);
+      const queryChain = mockModel.query('email');
+      queryChain.exec.mockResolvedValue(Object.assign([], {lastKey: undefined}));
+
+      await repo.findByIndex('email', 'a@b.com');
+
+      expect(queryChain.using).toHaveBeenCalledWith('emailGlobalIndex');
+    });
+
+    it('honours an explicit options.indexName override', async () => {
+      const repo = dataSource.getRepository(GsiTable);
+      const queryChain = mockModel.query('parent_id');
+      queryChain.exec.mockResolvedValue(Object.assign([], {lastKey: undefined}));
+
+      await repo.findByIndex('userIdOwner', 'u1', {indexName: 'someOtherIndex'});
+
+      expect(queryChain.using).toHaveBeenCalledWith('someOtherIndex');
     });
   });
 

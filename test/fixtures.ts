@@ -69,6 +69,23 @@ export class OrderTable {
   quantity!: number;
 }
 
+@DynamoTable('gsi_items')
+export class GsiTable {
+  @StringAttribute({hashKey: true, required: true})
+  id!: string;
+
+  // custom-named GSI (name differs from `${attributeName}GlobalIndex`)
+  @StringAttribute('parent_id', {index: {name: 'parentIdIndex', rangeKey: 'createdAt'}})
+  userIdOwner!: string;
+
+  // default-named GSI via `index: true`
+  @StringAttribute({index: true})
+  email!: string;
+
+  @CreateDateAttribute('created_at')
+  createdAt!: Date;
+}
+
 @DynamoTable('versioned_items')
 export class VersionedTable {
   @StringAttribute({hashKey: true, required: true})
