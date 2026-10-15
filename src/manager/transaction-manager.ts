@@ -31,20 +31,20 @@ export class TransactionManager {
     return model as InternalModel<T>;
   }
 
-  async findOneBy<T extends object>(
+  async findOneBy<T extends object, S extends SelectMap<T> | undefined = undefined>(
     entityClass: new () => T,
     key: Partial<T>,
-    options?: FindOptions
-  ): Promise<T | undefined> {
-    return new Repository<T>(this.#getModel(entityClass)).findOneBy(key, options);
+    options?: FindOptions & {select?: S}
+  ): Promise<Projected<T, S> | undefined> {
+    return new Repository<T>(this.#getModel(entityClass)).findOneBy<S>(key, options);
   }
 
-  async findOneByOrFail<T extends object>(
+  async findOneByOrFail<T extends object, S extends SelectMap<T> | undefined = undefined>(
     entityClass: new () => T,
     key: Partial<T>,
-    options?: FindOptions
-  ): Promise<T> {
-    return new Repository<T>(this.#getModel(entityClass)).findOneByOrFail(key, options);
+    options?: FindOptions & {select?: S}
+  ): Promise<Projected<T, S>> {
+    return new Repository<T>(this.#getModel(entityClass)).findOneByOrFail<S>(key, options);
   }
 
   async find<T extends object, S extends SelectMap<T> | undefined = undefined>(

@@ -68,23 +68,23 @@ export class EntityManager {
   /**
    * Find an entity by key.
    */
-  async findOneBy<T extends object>(
+  async findOneBy<T extends object, S extends SelectMap<T> | undefined = undefined>(
     entityClass: new () => T,
     key: Partial<T>,
-    options?: FindOptions
-  ): Promise<T | undefined> {
-    return this.getRepository(entityClass).findOneBy(key, options);
+    options?: FindOptions & {select?: S}
+  ): Promise<Projected<T, S> | undefined> {
+    return this.getRepository(entityClass).findOneBy<S>(key, options);
   }
 
   /**
    * Find an entity by key, or throw if not found.
    */
-  async findOneByOrFail<T extends object>(
+  async findOneByOrFail<T extends object, S extends SelectMap<T> | undefined = undefined>(
     entityClass: new () => T,
     key: Partial<T>,
-    options?: FindOptions
-  ): Promise<T> {
-    return this.getRepository(entityClass).findOneByOrFail(key, options);
+    options?: FindOptions & {select?: S}
+  ): Promise<Projected<T, S>> {
+    return this.getRepository(entityClass).findOneByOrFail<S>(key, options);
   }
 
   /**

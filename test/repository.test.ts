@@ -54,6 +54,20 @@ describe('save & findOneBy', () => {
     const repo = ds.getRepository(UserTable);
     await expect(repo.findOneByOrFail({id: 'nope'})).rejects.toThrow('not found');
   });
+
+  it('findOneBy honours select (in-memory)', async () => {
+    const repo = ds.getRepository(UserTable);
+    await repo.save(alice());
+    expect(await repo.findOneBy({id: 'u1'}, {select: {id: true, name: true}})).toEqual({id: 'u1', name: 'Alice'});
+    expect(await repo.findOneBy({id: 'nope'}, {select: {id: true}})).toBeUndefined();
+  });
+
+  it('findOneByOrFail honours select (in-memory)', async () => {
+    const repo = ds.getRepository(UserTable);
+    await repo.save(alice());
+    expect(await repo.findOneByOrFail({id: 'u1'}, {select: {age: true}})).toEqual({age: 30});
+    expect(await ds.manager.findOneByOrFail(UserTable, {id: 'u1'}, {select: {age: true}})).toEqual({age: 30});
+  });
 });
 
 // ─── update ───────────────────────────────────────────────────────────────────

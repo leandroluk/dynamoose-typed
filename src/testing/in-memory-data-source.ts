@@ -126,20 +126,20 @@ export class InMemoryManager {
     return this.#repo(entityClass).update(key, changes, options);
   }
 
-  async findOneBy<T extends object>(
+  async findOneBy<T extends object, S extends SelectMap<T> | undefined = undefined>(
     entityClass: new () => T,
     key: Partial<T>,
-    options?: FindOptions
-  ): Promise<T | undefined> {
-    return this.#repo(entityClass).findOneBy(key, options);
+    options?: FindOptions & {select?: S}
+  ): Promise<Projected<T, S> | undefined> {
+    return this.#repo(entityClass).findOneBy<S>(key, options);
   }
 
-  async findOneByOrFail<T extends object>(
+  async findOneByOrFail<T extends object, S extends SelectMap<T> | undefined = undefined>(
     entityClass: new () => T,
     key: Partial<T>,
-    options?: FindOptions
-  ): Promise<T> {
-    return this.#repo(entityClass).findOneByOrFail(key, options);
+    options?: FindOptions & {select?: S}
+  ): Promise<Projected<T, S>> {
+    return this.#repo(entityClass).findOneByOrFail<S>(key, options);
   }
 
   async findByIndex<T extends object, S extends SelectMap<T> | undefined = undefined>(
