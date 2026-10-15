@@ -173,11 +173,93 @@ describe('Repository Integration (Real Logic)', () => {
     });
   });
 
+  describe('findOneBy with select', () => {
+    it('projects attributes (alias-mapped) in the GetItem call and returns only those keys', async () => {
+      const repo = dataSource.getRepository(UserTable);
+      mockModel.get.mockResolvedValue(makeItem({id: '1', is_active: true, deleted_at: null}));
+
+      const result = await repo.findOneBy({id: '1'}, {select: {id: true, isActive: true}});
+
+      expect(mockModel.get).toHaveBeenCalledWith({id: '1'}, {attributes: ['id', 'is_active', 'deleted_at']});
+      expect(result).toEqual({id: '1', isActive: true});
+    });
+
+    it('does not request the soft-delete attribute when withDeleted is true', async () => {
+      const repo = dataSource.getRepository(UserTable);
+      mockModel.get.mockResolvedValue(makeItem({id: '1', deleted_at: new Date()}));
+
+      const result = await repo.findOneBy({id: '1'}, {select: {id: true}, withDeleted: true});
+
+      expect(mockModel.get).toHaveBeenCalledWith({id: '1'}, {attributes: ['id']});
+      expect(result).toEqual({id: '1'});
+    });
+
+    it('does not duplicate the soft-delete attribute when already selected', async () => {
+      const repo = dataSource.getRepository(UserTable);
+      mockModel.get.mockResolvedValue(makeItem({id: '1', deleted_at: null}));
+
+      await repo.findOneBy({id: '1'}, {select: {id: true, deletedAt: true}});
+
+      expect(mockModel.get).toHaveBeenCalledWith({id: '1'}, {attributes: ['id', 'deleted_at']});
+    });
+
+    it('filters soft-deleted items even when select omits the soft-delete key', async () => {
+      const repo = dataSource.getRepository(UserTable);
+      mockModel.get.mockResolvedValue(makeItem({id: '1', deleted_at: new Date()}));
+
+      expect(await repo.findOneBy({id: '1'}, {select: {id: true}})).toBeUndefined();
+    });
+
+    it('keeps returning the whole item without select (no projection settings)', async () => {
+      const repo = dataSource.getRepository(UserTable);
+      mockModel.get.mockResolvedValue(makeItem({id: '1', name: 'Test'}));
+
+      const result = await repo.findOneBy({id: '1'});
+
+      expect(mockModel.get).toHaveBeenCalledWith({id: '1'});
+      expect(result).toBeInstanceOf(UserTable);
+      expect(result?.name).toBe('Test');
+    });
+
+    it('returns undefined for a missing item with and without select', async () => {
+      const repo = dataSource.getRepository(UserTable);
+      mockModel.get.mockResolvedValue(null as any);
+
+      expect(await repo.findOneBy({id: 'x'}, {select: {id: true}})).toBeUndefined();
+      expect(await repo.findOneBy({id: 'x'})).toBeUndefined();
+    });
+
+    it('is honoured through manager.findOneBy', async () => {
+      mockModel.get.mockResolvedValue(makeItem({id: '1', name: 'Test', deleted_at: null}));
+
+      const result = await dataSource.manager.findOneBy(UserTable, {id: '1'}, {select: {id: true, name: true}});
+
+      expect(mockModel.get).toHaveBeenCalledWith({id: '1'}, {attributes: ['id', 'name', 'deleted_at']});
+      expect(result).toEqual({id: '1', name: 'Test'});
+    });
+  });
+
   describe('findOneByOrFail', () => {
     it('throws if item not found', async () => {
       const repo = dataSource.getRepository(UserTable);
       mockModel.get.mockResolvedValue(null as any);
       await expect(repo.findOneByOrFail({id: '1'})).rejects.toThrow('Entity not found');
+    });
+
+    it('applies select', async () => {
+      const repo = dataSource.getRepository(UserTable);
+      mockModel.get.mockResolvedValue(makeItem({id: '1', name: 'Test', deleted_at: null}));
+
+      const result = await repo.findOneByOrFail({id: '1'}, {select: {name: true}});
+
+      expect(mockModel.get).toHaveBeenCalledWith({id: '1'}, {attributes: ['name', 'deleted_at']});
+      expect(result).toEqual({name: 'Test'});
+    });
+
+    it('throws for a missing item when select is given', async () => {
+      const repo = dataSource.getRepository(UserTable);
+      mockModel.get.mockResolvedValue(null as any);
+      await expect(repo.findOneByOrFail({id: '1'}, {select: {id: true}})).rejects.toThrow('Entity not found');
     });
   });
 

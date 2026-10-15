@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.12.0] - 2026-10-15
+
+### Added
+
+- **`select` support in `findOneBy` / `findOneByOrFail`** (Repository, `EntityManager`, transactions
+  and the in-memory testing data source). The projection is sent in the `GetItem` call
+  (`raw.get(key, {attributes})`, keys mapped via `schema.aliasMap`), the soft-delete attribute is
+  added to the request when needed so the soft-delete filter keeps working, and the returned
+  object contains exactly the requested keys. The return type is `Projected<T, S>`.
+  Without `select` nothing changes (whole item).
+
+  Note: projection reduces only the payload; DynamoDB bills reads by item size, not by projected size.
+
 ## [1.11.0] - 2026-08-28
 
 ### Added

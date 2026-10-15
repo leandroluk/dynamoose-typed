@@ -169,7 +169,10 @@ export class InMemoryRepository<T extends object> {
     return updated as unknown as T;
   }
 
-  async findOneBy(key: Partial<T>, options: FindOptions = {}): Promise<T | undefined> {
+  async findOneBy<S extends SelectMap<T> | undefined = undefined>(
+    key: Partial<T>,
+    options: FindOptions & {select?: S} = {}
+  ): Promise<Projected<T, S> | undefined> {
     const item = this.#store.get(this.#keyOf(key));
     if (!item) {
       return undefined;
@@ -177,11 +180,14 @@ export class InMemoryRepository<T extends object> {
     if (!options.withDeleted && this.#isSoftDeleted(item)) {
       return undefined;
     }
-    return {...item};
+    return projectItem({...item}, options.select) as Projected<T, S>;
   }
 
-  async findOneByOrFail(key: Partial<T>, options: FindOptions = {}): Promise<T> {
-    const result = await this.findOneBy(key, options);
+  async findOneByOrFail<S extends SelectMap<T> | undefined = undefined>(
+    key: Partial<T>,
+    options: FindOptions & {select?: S} = {}
+  ): Promise<Projected<T, S>> {
+    const result = await this.findOneBy<S>(key, options);
     if (!result) {
       throw new Error(`[in-memory] Entity not found for key: ${JSON.stringify(key)}`);
     }

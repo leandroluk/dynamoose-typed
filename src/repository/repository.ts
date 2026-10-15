@@ -198,27 +198,49 @@ export class Repository<T extends object> {
   /**
    * Find one item by key.
    */
-  async findOneBy(key: ItemKey<T>, options: FindOptions = {}): Promise<T | undefined> {
+  async findOneBy<S extends SelectMap<T> | undefined = undefined>(
+    key: ItemKey<T>,
+    options: FindOptions & {select?: S} = {}
+  ): Promise<Projected<T, S> | undefined> {
+    const schema = this.#model.schema;
     const attrKey = this.#model.toAttributeKey(key) as unknown as InputKey;
-    const result = await this.#model.raw.get(attrKey);
+    const {select} = options;
+    const softDelete = !options.withDeleted && this.#model.hasSoftDelete();
+
+    let settings: {attributes: string[]} | undefined;
+    if (select) {
+      const attrNames = Object.keys(select).map(k => schema.aliasMap[k]);
+      if (softDelete) {
+        const deleteDateAttr = schema.aliasMap[schema.deleteDateKey!];
+        if (!attrNames.includes(deleteDateAttr)) {
+          attrNames.push(deleteDateAttr);
+        }
+      }
+      settings = {attributes: attrNames as string[]};
+    }
+
+    const result = settings ? await this.#model.raw.get(attrKey, settings) : await this.#model.raw.get(attrKey);
     if (!result) {
       return undefined;
     }
     const item = this.#model.normalize(result);
-    if (!options.withDeleted && this.#model.hasSoftDelete()) {
-      const deleteDateKey = this.#model.schema.deleteDateKey!;
+    if (softDelete) {
+      const deleteDateKey = schema.deleteDateKey!;
       if ((item as AnyRecord)[deleteDateKey] !== null && (item as AnyRecord)[deleteDateKey] !== undefined) {
         return undefined;
       }
     }
-    return item;
+    return projectItem(item, select) as Projected<T, S>;
   }
 
   /**
    * Find one item by key; throws if not found or soft-deleted.
    */
-  async findOneByOrFail(key: ItemKey<T>, options: FindOptions = {}): Promise<T> {
-    const result = await this.findOneBy(key, options);
+  async findOneByOrFail<S extends SelectMap<T> | undefined = undefined>(
+    key: ItemKey<T>,
+    options: FindOptions & {select?: S} = {}
+  ): Promise<Projected<T, S>> {
+    const result = await this.findOneBy<S>(key, options);
     if (result === undefined) {
       throw new Error(`[dynamoose-typed] Entity not found for key: ${JSON.stringify(key)}`);
     }

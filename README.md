@@ -324,6 +324,10 @@ const user = await userRepository.findOneByOrFail({ id: '123' });
 // include soft-deleted items
 const deletedUser = await userRepository.findOneBy({ id: '123' }, { withDeleted: true });
 
+// Fetch only some attributes (projection is sent in the GetItem call)
+const slim = await userRepository.findOneBy({ id: '123' }, { select: { id: true, name: true } });
+// slim: { id: string; name: string } | undefined
+
 // query by hash key
 const { items, count, lastKey } = await userRepository.find('alice-partition', {
   limit: 20,
